@@ -20,6 +20,8 @@ org: bromeodolly
 # Check out our docs for more details
 frameworkVersion: '2'
 
+useDotenv: true
+
 provider:
   name: aws
   runtime: python3.8
@@ -45,8 +47,12 @@ provider:
 #            - "/*"
 
 # you can define service wide environment variables here
-#  environment:
-#    variable1: value1
+  environment:
+    INVICITUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
+    INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
+    INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
+    INVICTUS_USER : ${env:INVICTUS_USER}
+    INVICTUS_PASS : ${env:INVICTUS_PASS}
 
 # you can add packaging information here
 #package:
@@ -60,6 +66,8 @@ provider:
 functions:
   hello:
     handler: handler.hello
+  get_invictus_post:
+    handler: handler.GET_invictus_post
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
@@ -111,3 +119,11 @@ functions:
 #     NewOutput:
 #       Description: "Description for the output"
 #       Value: "Some output value"
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+
