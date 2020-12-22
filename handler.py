@@ -1,8 +1,9 @@
 import os
 import json
 import requests
-# from bs4 import BeautifulSoup
+import boto3
 
+s3_resource = boto3.resource('s3')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 
 def GET_invictus_post(user_name, password, posts=1):
@@ -17,25 +18,15 @@ def GET_invictus_post(user_name, password, posts=1):
     
 
 
-def hello(event, context):
+def dump_post_to_bucket(event, context):
 
-    response = json.dumps(
-                    GET_invictus_post(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
-                )
-
-    return response
+    response = GET_invictus_post(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])[0]
     
+    workout_slug = response["slug"]
 
-    # Use this code if you don't use the http event with the LAMBDA-PROXY
-    # integration
-    """
-    return {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
-        "event": event
-    }
-    """
-
-
+    s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], '{slug}/_raw_{slug}.json'.format(slug=workout_slug))
     
+    return s3object.put(
+        Body=(bytes(json.dumps(response).encode('UTF-8')))
+    )
     
-

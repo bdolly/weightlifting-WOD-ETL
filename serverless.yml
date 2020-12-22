@@ -25,6 +25,12 @@ useDotenv: true
 provider:
   name: aws
   runtime: python3.8
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "*"
+
 
 # you can overwrite defaults here
 #  stage: dev
@@ -48,7 +54,8 @@ provider:
 
 # you can define service wide environment variables here
   environment:
-    INVICITUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
+    INVICTUS_BUCKET: invictus-test-213
+    INVICTUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
     INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
     INVICTUS_USER : ${env:INVICTUS_USER}
@@ -64,14 +71,17 @@ provider:
 #    - exclude-me-dir/**
 
 functions:
-  hello:
-    handler: handler.hello
+  dump_post_to_bucket:
+    handler: handler.dump_post_to_bucket
   get_invictus_post:
     handler: handler.GET_invictus_post
+    events:
+      - s3:
+          bucket: ${self:provider.environment.INVICTUS_BUCKET}
 #    The following are a few example events you can configure
 #    NOTE: Please make sure to change your handler code to work with those events
 #    Check the event documentation for details
-#    events:
+  # events:
 #      - http:
 #          path: users/create
 #          method: get
