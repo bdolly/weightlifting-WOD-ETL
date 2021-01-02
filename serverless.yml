@@ -30,11 +30,12 @@ provider:
     - Effect: Allow
       Action:
         - s3:*
+        - states:TagResource
       Resource: "*"
 
 
 # you can overwrite defaults here
-#  stage: dev
+# stage: dev
 #  region: us-east-1
 
 # you can add statements to the Lambda function's IAM Role here
@@ -137,8 +138,30 @@ functions:
 
 plugins:
   - serverless-python-requirements
+  - serverless-step-functions
+
 
 custom:
   pythonRequirements:
     dockerizePip: non-linux
+
+
+stepFunctions:
+  stateMachines:
+    SemiStructureInvictusPost: 
+      definition: 
+        Comment: "Pull WP Post from Invictus blog and process workout(s) to json"
+        StartAt: GetPost
+        States:
+          GetPost:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [get_invictus_post, Arn]
+            Next: DumpPostToStagingBucket
+          DumpPostToStagingBucket:
+            Type: Task
+            Resource: 
+              Fn::GetAtt: [dump_post_to_bucket, Arn]
+            End: true
+    
 
