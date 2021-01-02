@@ -1,0 +1,5 @@
+{
+  "username": "foo",
+  "password": "bar",
+  "posts_per_page":"1"
+}

@@ -2,6 +2,9 @@ import os
 import json
 import requests
 import boto3
+import numpy as np
+import pandas as pd
+from bs4 import BeautifulSoup
 
 s3_resource = boto3.resource('s3')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
@@ -33,4 +36,15 @@ def dump_post_to_bucket(invictus_raw_posts, context):
         Body=(bytes(json.dumps(post).encode('UTF-8')))
     )
 
-    return json.dumps(post)
+    return post
+
+
+def strip_post_html(post, ctx):
+    """
+        strip HTML from post conent because it's not well structured markup.
+    """
+
+    post_text_raw = BeautifulSoup(
+        post['content']['rendered'], 'html.parser')
+
+    return post_text_raw.get_text()

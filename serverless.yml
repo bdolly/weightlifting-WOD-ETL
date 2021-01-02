@@ -30,7 +30,7 @@ provider:
     - Effect: Allow
       Action:
         - s3:*
-        - states:TagResource
+        - states:*
       Resource: "*"
 
 
@@ -64,87 +64,34 @@ provider:
     INVICTUS_PASS : ${env:INVICTUS_PASS}
 
 # you can add packaging information here
-#package:
-#  include:
-#    - include-me.py
-#    - include-me-dir/**
-#  exclude:
-#    - exclude-me.py
-#    - exclude-me-dir/**
+
+package:
+  exclude:
+    - node_modules/**
+    - venv/**
+    - __pycache__/**
+    - test_events
 
 functions:
   dump_post_to_bucket:
     handler: handler.dump_post_to_bucket
+    package:
+      artifact:
     events:
       - schedule:
           rate: cron(0 0 ? * SUN *)
           enabled: true
   get_invictus_post:
     handler: handler.GET_invictus_post
+    package:
+      artifact:
     events:
       - s3:
           bucket: ${self:provider.environment.INVICTUS_BUCKET}
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
-  # events:
-#      - http:
-#          path: users/create
-#          method: get
-#      - websocket: $connect
-#      - s3: ${env:BUCKET}
-#      - schedule: rate(10 minutes)
-#      - sns: greeter-topic
-#      - stream: arn:aws:dynamodb:region:XXXXXX:table/foo/stream/1970-01-01T00:00:00.000
-#      - alexaSkill: amzn1.ask.skill.xx-xx-xx-xx
-#      - alexaSmartHome: amzn1.ask.skill.xx-xx-xx-xx
-#      - iot:
-#          sql: "SELECT * FROM 'some_topic'"
-#      - cloudwatchEvent:
-#          event:
-#            source:
-#              - "aws.ec2"
-#            detail-type:
-#              - "EC2 Instance State-change Notification"
-#            detail:
-#              state:
-#                - pending
-#      - cloudwatchLog: '/aws/lambda/hello'
-#      - cognitoUserPool:
-#          pool: MyUserPool
-#          trigger: PreSignUp
-#      - alb:
-#          listenerArn: arn:aws:elasticloadbalancing:us-east-1:XXXXXX:listener/app/my-load-balancer/50dc6c495c0c9188/
-#          priority: 1
-#          conditions:
-#            host: example.com
-#            path: /hello
-
-#    Define function environment variables here
-#    environment:
-#      variable2: value2
-
-# you can add CloudFormation resource templates here
-#resources:
-#  Resources:
-#    NewResource:
-#      Type: AWS::S3::Bucket
-#      Properties:
-#        BucketName: my-new-bucket
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"
-
-plugins:
-  - serverless-python-requirements
-  - serverless-step-functions
-
-
-custom:
-  pythonRequirements:
-    dockerizePip: non-linux
-
+  strip_post_html: 
+    handler: handler.strip_post_html
+    package:
+      artifact:
 
 stepFunctions:
   stateMachines:
@@ -162,6 +109,18 @@ stepFunctions:
             Type: Task
             Resource: 
               Fn::GetAtt: [dump_post_to_bucket, Arn]
-            End: true
-    
+            Next: StripPostHTML
+          StripPostHTML:
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [strip_post_html, Arn]
+            End: True
 
+    
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
