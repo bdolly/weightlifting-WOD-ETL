@@ -92,6 +92,22 @@ functions:
     handler: handler.strip_post_html
     package:
       artifact:
+  group_post_by_day: 
+    handler: transforms.group_post_content_by_day
+    package:
+      artifact:
+  segment_days: 
+    handler: transforms.segment_days
+    package:
+      artifact:
+  sessions_to_date_records: 
+    handler: transforms.sessions_to_json_records_by_day
+    package:
+      artifact:
+  save_sessions_to_bucket: 
+    handler: handler.save_sessions_to_bucket
+    package:
+      artifact:
 
 stepFunctions:
   stateMachines:
@@ -114,7 +130,28 @@ stepFunctions:
             Type: Task 
             Resource: 
               Fn::GetAtt: [strip_post_html, Arn]
+            Next: GroupByDay
+          GroupByDay:
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [group_post_by_day, Arn]
+            Next: GetDaySegments
+          GetDaySegments: 
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [segment_days, Arn]
+            Next: SessionsToDateRecordsJSON
+          SessionsToDateRecordsJSON: 
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [sessions_to_date_records, Arn]
+            Next: SaveSessionRecordsToBucket
+          SaveSessionRecordsToBucket: 
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [save_sessions_to_bucket, Arn]
             End: True
+
 
     
 plugins:
