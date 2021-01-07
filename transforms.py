@@ -93,11 +93,21 @@ def sessions_to_json_records_by_day(event, ctx):
     dates = [start + datetime.timedelta(days=d)
              for d in range(len(event['segmented_sessions'])+1)]
 
-    dates = {
-        str(d): {
+    # dates = {
+    #     str(d): {
+    #         session[0]:  ' '.join(session[1:])
+    #         for idx, session in enumerate(event['segmented_sessions'][idx])
+    #     } for idx, d in enumerate(dates[1:])
+    # }
+
+    sessions = [
+        {
             session[0]:  ' '.join(session[1:])
             for idx, session in enumerate(event['segmented_sessions'][idx])
         } for idx, d in enumerate(dates[1:])
-    }
+    ]
 
-    return dates
+    session_records = [{"date": str(dates[idx]), **session}
+                       for idx, session in enumerate(sessions)]
+
+    return session_records
