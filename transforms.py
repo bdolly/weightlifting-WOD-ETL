@@ -1,6 +1,7 @@
 import re
 import pandas as pd
 import numpy as np
+import json
 from more_itertools import pairwise
 import datetime
 
@@ -111,3 +112,20 @@ def sessions_to_json_records_by_day(event, ctx):
                        for idx, session in enumerate(sessions)]
 
     return session_records
+
+
+def clean_sessions_df_records(event, ctx):
+
+    sessions_df = pd.DataFrame(event)
+
+    sessions_df = sessions_df.rename(
+        columns={'Suggested Warm-Up': 'warm_up', 'A.': 'segment_a', 'B.': 'segment_b', 'C.': 'segment_c', 'D.': 'segment_d', 'E.': 'segment_e'}).drop(columns=['s', 'r'])
+
+    sessions_df['date'] = pd.to_datetime(
+        sessions_df['date'], infer_datetime_format=True)
+
+    sessions_df['session'].fillna('Rest Day', inplace=True)
+
+    sessions_df_records = sessions_df.to_json(orient="records")
+
+    return sessions_df_records

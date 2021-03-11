@@ -55,7 +55,7 @@ def strip_post_html(post, ctx):
 
 def save_sessions_to_bucket(session_records, context):
 
-    df = pd.DataFrame(session_records, columns=session_records[0].keys())
+    df = pd.DataFrame(session_records)
     df['date'] = pd.to_datetime(
         df['date'], infer_datetime_format=True)
 
@@ -66,11 +66,11 @@ def save_sessions_to_bucket(session_records, context):
 
     s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
 
-    # save to bucket as lines of json so that we can query it using S3 select
+    # # save to bucket as lines of json so that we can query it using S3 select
     s3object_success = s3object.put(
         Body=(
             str(df.to_json(orient="records", lines=True))
         )
     )
 
-    return df.to_json()
+    return df.to_json(orient="records")

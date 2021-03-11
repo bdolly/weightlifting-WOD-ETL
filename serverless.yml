@@ -104,10 +104,15 @@ functions:
     handler: transforms.sessions_to_json_records_by_day
     package:
       artifact:
+  clean_session_records: 
+    handler: handler.clean_sessions_df_records
+    package:
+      artifact:
   save_sessions_to_bucket: 
     handler: handler.save_sessions_to_bucket
     package:
       artifact:
+  
 
 stepFunctions:
   stateMachines:
@@ -145,6 +150,11 @@ stepFunctions:
             Type: Task 
             Resource: 
               Fn::GetAtt: [sessions_to_date_records, Arn]
+            Next: CleanSessionRecords
+          CleanSessionRecords: 
+            Type: Task 
+            Resource: 
+              Fn::GetAtt: [clean_session_records, Arn]
             Next: SaveSessionRecordsToBucket
           SaveSessionRecordsToBucket: 
             Type: Task 
