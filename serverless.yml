@@ -1,18 +1,5 @@
-# Welcome to Serverless!
-#
-# This file is the main config file for your service.
-# It's very minimal at this point and uses default values.
-# You can always add more config options for more control.
-# We've included some commented out config examples here.
-# Just uncomment any of them to get that config option.
-#
-# For full config options, check the docs:
-#    docs.serverless.com
-#
-# Happy Coding!
-
 service: invictus-weightlifting
-# app and org for use with dashboard.serverless.com
+
 app: invictus-weightlifting-app
 org: bromeodolly
 
@@ -24,35 +11,25 @@ useDotenv: true
 
 provider:
   name: aws
+  region: us-east-1
   runtime: python3.8
   profile: serverless-agent
+  stage: dev
   iamRoleStatements:
     - Effect: Allow
       Action:
         - s3:*
         - states:*
       Resource: "*"
-
-
-# you can overwrite defaults here
-# stage: dev
-#  region: us-east-1
-
-# you can add statements to the Lambda function's IAM Role here
-#  iamRoleStatements:
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:ListBucket"
-#      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-#    - Effect: "Allow"
-#      Action:
-#        - "s3:PutObject"
-#      Resource:
-#        Fn::Join:
-#          - ""
-#          - - "arn:aws:s3:::"
-#            - "Ref" : "ServerlessDeploymentBucket"
-#            - "/*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
 
 # you can define service wide environment variables here
   environment:
@@ -62,9 +39,10 @@ provider:
     INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
     INVICTUS_USER : ${env:INVICTUS_USER}
     INVICTUS_PASS : ${env:INVICTUS_PASS}
+    DYNAMODB_TABLE: ${self:service}-posts-${opt:stage, self:provider.stage}
+
 
 # you can add packaging information here
-
 package:
   exclude:
     - node_modules/**
@@ -72,15 +50,23 @@ package:
     - __pycache__/**
     - test_events
 
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+  - serverless-pseudo-parameters
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+
+
 functions:
+
   dump_post_to_bucket:
     handler: handler.dump_post_to_bucket
     package:
       artifact:
-    events:
-      - schedule:
-          rate: cron(0 0 ? * SUN *)
-          enabled: true
+
   get_invictus_post:
     handler: handler.GET_invictus_post
     package:
@@ -88,18 +74,22 @@ functions:
     events:
       - s3:
           bucket: ${self:provider.environment.INVICTUS_BUCKET}
+
   strip_post_html: 
     handler: handler.strip_post_html
     package:
       artifact:
+
   group_post_by_day: 
     handler: transforms.group_post_content_by_day
     package:
       artifact:
+
   segment_days: 
     handler: transforms.segment_days
     package:
       artifact:
+      
   sessions_to_date_records: 
     handler: transforms.sessions_to_json_records_by_day
     package:
@@ -117,6 +107,7 @@ functions:
 stepFunctions:
   stateMachines:
     SemiStructureInvictusPost: 
+      dependsOn: WorkoutPostsTable
       definition: 
         Comment: "Pull WP Post from Invictus blog and process workout(s) to json"
         StartAt: GetPost
@@ -160,14 +151,37 @@ stepFunctions:
             Type: Task 
             Resource: 
               Fn::GetAtt: [save_sessions_to_bucket, Arn]
+            Next: StoreSessionToDB
+          StoreSessionToDB: 
+            Type: Task 
+            Resource: "arn:aws:states:::dynamodb:putItem"
+            Parameters:
+              TableName: ${self:provider.environment.DYNAMODB_TABLE}
+              Item:
+                session: "test"
+                date: "test"
             End: True
 
-
-    
-plugins:
-  - serverless-python-requirements
-  - serverless-step-functions
-
-custom:
-  pythonRequirements:
-    dockerizePip: non-linux
+resources:
+  Resources: 
+    WorkoutPostsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        AttributeDefinitions: 
+          -
+            AttributeName: date
+            AttributeType: S
+          -
+            AttributeName: session
+            AttributeType: S
+        KeySchema: 
+          -
+            AttributeName: session
+            KeyType: HASH
+          -
+            AttributeName: date
+            KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
