@@ -94,10 +94,12 @@ functions:
     handler: transforms.sessions_to_json_records_by_day
     package:
       artifact:
+
   clean_session_records: 
     handler: handler.clean_sessions_df_records
     package:
       artifact:
+
   save_sessions_to_bucket: 
     handler: handler.save_sessions_to_bucket
     package:
@@ -146,21 +148,44 @@ stepFunctions:
             Type: Task 
             Resource: 
               Fn::GetAtt: [clean_session_records, Arn]
-            Next: SaveSessionRecordsToBucket
-          SaveSessionRecordsToBucket: 
-            Type: Task 
-            Resource: 
-              Fn::GetAtt: [save_sessions_to_bucket, Arn]
-            Next: StoreSessionToDB
-          StoreSessionToDB: 
-            Type: Task 
-            Resource: "arn:aws:states:::dynamodb:putItem"
-            Parameters:
-              TableName: ${self:provider.environment.DYNAMODB_TABLE}
-              Item:
-                session: "test"
-                date: "test"
-            End: True
+            Next: WriteSessionsToDynamoDB_Map
+
+          WriteSessionsToDynamoDB_Map:
+            Type: Map
+            Iterator:
+              StartAt: StoreSessionToDB
+              States:
+                StoreSessionToDB: 
+                  Type: Task 
+                  Resource: "arn:aws:states:::dynamodb:putItem"
+                  Parameters:
+                    TableName: ${self:provider.environment.DYNAMODB_TABLE}
+                    Item:
+                      session: 
+                        "S.$": "$.session"
+                      date: 
+                        "S.$" : "$.date"                      
+                      warm_up:
+                        "S.$" : "$.warm_up"
+                      segment_a:
+                        "S.$" : "$.segment_a"
+                      segment_b:
+                        "S.$" : "$.segment_b"
+                      segment_c:
+                        "S.$" : "$.segment_c"
+                      segment_d:
+                        "S.$" : "$.segment_d"
+                      segment_e:
+                        "S.$" : "$.segment_e"
+                  End: true
+            End: true
+
+          # SaveSessionRecordsToBucket: 
+          #   Type: Task 
+          #   Resource: 
+          #     Fn::GetAtt: [save_sessions_to_bucket, Arn]
+          #   Next: StoreSessionToDB
+          
 
 resources:
   Resources: 
