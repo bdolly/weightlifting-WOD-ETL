@@ -124,8 +124,17 @@ def clean_sessions_df_records(event, ctx):
     sessions_df['date'] = pd.to_datetime(
         sessions_df['date'], infer_datetime_format=True)
 
+    # store date as datetime ISO8601
+    # ref: https://stackoverflow.com/questions/18618288/how-do-i-convert-dates-into-iso-8601-datetime-format-in-a-pandas-dataframe
+    sessions_df['date'] = sessions_df['date'].dt.strftime(
+        '%Y-%m-%dT%H:%M%:%SZ')
+
     sessions_df['session'].fillna('Rest Day', inplace=True)
+
+    # need to fill all columns with empty string
+    # for
+    sessions_df.fillna('', inplace=True)
 
     sessions_df_records = sessions_df.to_json(orient="records")
 
-    return sessions_df_records
+    return json.loads(sessions_df_records)
