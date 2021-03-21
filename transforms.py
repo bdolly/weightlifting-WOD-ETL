@@ -127,7 +127,7 @@ def clean_sessions_df_records(event, ctx):
     # store date as datetime ISO8601
     # ref: https://stackoverflow.com/questions/18618288/how-do-i-convert-dates-into-iso-8601-datetime-format-in-a-pandas-dataframe
     sessions_df['date'] = sessions_df['date'].dt.strftime(
-        '%Y-%m-%dT%H:%M%:%SZ')
+        '%Y-%m-%d')
 
     sessions_df['session'].fillna('Rest Day', inplace=True)
 
