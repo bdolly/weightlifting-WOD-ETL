@@ -23,6 +23,10 @@ provider:
       Resource: "*"
     - Effect: Allow
       Action:
+        - sns:publish
+      Resource: "*"
+    - Effect: Allow
+      Action:
         - dynamodb:Query
         - dynamodb:Scan
         - dynamodb:GetItem
@@ -30,6 +34,11 @@ provider:
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
       Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+    - Effect: Allow
+      Action: 
+       - logs:*
+       - xray:*
+      Resource: "*"
 
 # you can define service wide environment variables here
   environment:
@@ -148,38 +157,62 @@ stepFunctions:
             Type: Task 
             Resource: 
               Fn::GetAtt: [clean_session_records, Arn]
-            Next: WriteSessionsToDynamoDB_Map
-
-          WriteSessionsToDynamoDB_Map:
-            Type: Map
-            Iterator:
-              StartAt: StoreSessionToDB
-              States:
-                StoreSessionToDB: 
-                  Type: Task 
-                  Resource: "arn:aws:states:::dynamodb:putItem"
-                  Parameters:
-                    TableName: ${self:provider.environment.DYNAMODB_TABLE}
-                    Item:
-                      session: 
-                        "S.$": "$.session"
-                      date: 
-                        "S.$" : "$.date"                      
-                      warm_up:
-                        "S.$" : "$.warm_up"
-                      segment_a:
-                        "S.$" : "$.segment_a"
-                      segment_b:
-                        "S.$" : "$.segment_b"
-                      segment_c:
-                        "S.$" : "$.segment_c"
-                      segment_d:
-                        "S.$" : "$.segment_d"
-                      segment_e:
-                        "S.$" : "$.segment_e"
+            Next: PersistRecords
+          PersistRecords: 
+            Type: Parallel
+            Next: NotifyWhenComplete
+            Branches: 
+            - StartAt: WriteSessionsToDynamoDB_Map
+              States: 
+                WriteSessionsToDynamoDB_Map:
+                  Type: Map
+                  Iterator:
+                    StartAt: StoreSessionToDB
+                    States:
+                      StoreSessionToDB: 
+                        Type: Task 
+                        Resource: "arn:aws:states:::dynamodb:putItem"
+                        Parameters:
+                          TableName: ${self:provider.environment.DYNAMODB_TABLE}
+                          Item:
+                            session: 
+                              "S.$": "$.session"
+                            date: 
+                              "S.$" : "$.date"                      
+                            warm_up:
+                              "S.$" : "$.warm_up"
+                            segment_a:
+                              "S.$" : "$.segment_a"
+                            segment_b:
+                              "S.$" : "$.segment_b"
+                            segment_c:
+                              "S.$" : "$.segment_c"
+                            segment_d:
+                              "S.$" : "$.segment_d"
+                            segment_e:
+                              "S.$" : "$.segment_e" 
+                        End: true
                   End: true
+            - StartAt: SaveSessionRecordsToBucket
+              States:
+                SaveSessionRecordsToBucket: 
+                  Type: Task 
+                  Resource: 
+                    Fn::GetAtt: [save_sessions_to_bucket, Arn]
+                  End: true
+          
+          NotifyWhenComplete: 
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters: 
+              # TopicArn: arn:aws:sns:us-east-1:670325714839:test
+              Message: 
+                Input: "testing from step function"
+              PhoneNumber: "+14012560086"
             End: true
 
+
+          # TODO: make this parallel with saving to DynamoDB
           # SaveSessionRecordsToBucket: 
           #   Type: Task 
           #   Resource: 
