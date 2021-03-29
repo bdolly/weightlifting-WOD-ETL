@@ -207,18 +207,11 @@ stepFunctions:
             Parameters: 
               # TopicArn: arn:aws:sns:us-east-1:670325714839:test
               Message: 
-                Input: "testing from step function"
+                Subject: "Invictus WOD DAG Completion"
+                Name.$: "$$.Execution.Name"
+                StartTime.$: "$$.Execution.StartTime"
               PhoneNumber: "+14012560086"
             End: true
-
-
-          # TODO: make this parallel with saving to DynamoDB
-          # SaveSessionRecordsToBucket: 
-          #   Type: Task 
-          #   Resource: 
-          #     Fn::GetAtt: [save_sessions_to_bucket, Arn]
-          #   Next: StoreSessionToDB
-          
 
 resources:
   Resources: 
