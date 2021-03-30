@@ -15,18 +15,19 @@ invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
+    posts_per_page = event.get('posts_per_page', False) or 1
 
     api_req = requests.get(
-        invictus_api+"&per_page="+str(1),
+        invictus_api+"&per_page="+str(posts_per_page),
         auth=(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
     )
 
     return api_req.json()
 
 
-def dump_post_to_bucket(invictus_raw_posts, context):
+def dump_post_to_bucket(invictus_raw_post, context):
 
-    post = invictus_raw_posts[0]
+    post = invictus_raw_post
     post_date_time_obj = parse(post["date"])
 
     bucket_path = 'raw/{posted}__{slug}__raw.json'.format(
