@@ -16,9 +16,10 @@ invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
     posts_per_page = event.get('posts_per_page', False) or 1
+    page_num = event.get('page', False) or 1
 
     api_req = requests.get(
-        invictus_api+"&per_page="+str(posts_per_page),
+        invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num),
         auth=(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
     )
 
