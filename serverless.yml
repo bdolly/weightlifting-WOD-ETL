@@ -18,6 +18,7 @@ provider:
   iamRoleStatements:
     - Effect: Allow
       Action:
+        - lambda:InvokeFunction
         - s3:*
         - states:*
       Resource: "*"
@@ -48,7 +49,7 @@ provider:
     INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
     INVICTUS_USER : ${env:INVICTUS_USER}
     INVICTUS_PASS : ${env:INVICTUS_PASS}
-    DYNAMODB_TABLE: ${self:service}-posts-${opt:stage, self:provider.stage}
+    DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
 
 
 # you can add packaging information here
@@ -67,7 +68,6 @@ plugins:
 custom:
   pythonRequirements:
     dockerizePip: non-linux
-
 
 functions:
 
@@ -134,11 +134,44 @@ resources:
             AttributeType: S
         KeySchema: 
           -
-            AttributeName: session
+            AttributeName: date
             KeyType: HASH
           -
-            AttributeName: date
+            AttributeName: session
             KeyType: RANGE
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    SemiStructuedPostStateMachineTrigger: 
+      Type: AWS::Events::Rule
+      Properties: 
+        Name: SemiStructureInvictusPost_trigger
+        State: DISABLED
+        Description: trigger the SemiStructureInvictusPost state machine
+        ScheduleExpression: rate(10 minutes)
+        Targets: 
+          - Arn: 
+              Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
+            Id: SemiStructure_InvictusPost_StateMachine
+            RoleArn: arn:aws:iam::670325714839:role/service-role/AWS_Events_Invoke_Step_Functions_1766034610
+    SemiStructuedPostStateMachineRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: SemiStructuedPostStateMachineRole
+        # Path: /path_of_state_machine_roles/
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - states.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: statePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement: 
+                ${self:provider.iamRoleStatements}
+                
+                

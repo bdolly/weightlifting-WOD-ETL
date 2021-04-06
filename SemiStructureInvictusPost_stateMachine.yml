@@ -1,5 +1,8 @@
 SemiStructureInvictusPost: 
       dependsOn: WorkoutPostsTable
+      name: SemiStructureInvictusPostStateMachine
+      role:
+        Fn::GetAtt: ["SemiStructuedPostStateMachineRole", "Arn"]
       definition: 
         Comment: "Pull WP Post from Invictus blog and process workout(s) to json"
         StartAt: GetPost
@@ -107,6 +110,6 @@ SemiStructureInvictusPost:
                 Subject: "Invictus WOD DAG Completion"
                 Name.$: "$$.Execution.Name"
                 StartTime.$: "$$.Execution.StartTime"
-                WeeksProcessed.$: "$$.Execution.Input.posts_per_page"
+                # WeeksProcessed.$: "$$.Execution.Input.posts_per_page"
               PhoneNumber: "+14012560086"
             End: true
