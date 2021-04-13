@@ -1,0 +1,59 @@
+
+  # dependsOn: StagingPostsTable
+  name: UnStructuredInvictusPostStateMachine
+  role:
+    Fn::GetAtt: ["SemiStructuedPostStateMachineRole", "Arn"]
+  definition: 
+    Comment: "Pull WP Post from Invictus blog and save to Dynamo table"
+    StartAt: GetPost
+    States:
+      GetPost:
+        Type: Task
+        Resource:
+          Fn::GetAtt: [get_invictus_post, Arn]
+        Next: NotifyWhenComplete
+      NotifyWhenComplete: 
+        Type: Task
+        Resource: "arn:aws:states:::sns:publish"
+        Parameters: 
+          TopicArn: arn:aws:sns:us-east-1:670325714839:test
+          Message.$: "$.[0].excerpt.rendered"
+          # PhoneNumber: "+14012560086"
+        End: true
+      # WriteSessionsToDynamoDB_Map:
+      #   Type: Map
+      #   Iterator:
+      #     StartAt: StoreSessionToDB
+      #     States:
+      #       StoreSessionToDB: 
+      #         Type: Task 
+      #         Resource: "arn:aws:states:::dynamodb:putItem"
+      #         Parameters:
+      #           TableName: ${self:service}-posts-staging
+      #           Item:
+      #             id: 
+      #               "N.$": "$.id"
+      #             date: 
+      #               "S.$": "$.date"
+      #             slug: 
+      #               "S.$": "$.slug"
+      #             content_html: 
+      #               "S.$": "$.content.rendered"
+      #             title: 
+      #               "S.$": "$.title.rendered"
+      #         End: true
+      #   End: true
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+          

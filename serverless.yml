@@ -117,7 +117,10 @@ functions:
 
 stepFunctions:
   stateMachines:
-    ${file(./SemiStructureInvictusPost_stateMachine.yml)}
+    SemiStructureInvictusPost: 
+      ${file(./SemiStructureInvictusPost_stateMachine.yml)}
+    UnStructuredInvictusPost: 
+      ${file(./UnStructuredPosts_stateMachine.yml)}
 
 resources:
   Resources: 
@@ -142,6 +145,27 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    # StagingPostsTable:
+    #   Type: AWS::DynamoDB::Table
+    #   Properties:
+    #     TableName: ${self:service}-posts-staging
+    #     AttributeDefinitions: 
+    #       -
+    #         AttributeName: date_gmt
+    #         AttributeType: S
+    #       # -
+    #       #   AttributeName: id
+    #       #   AttributeType: N
+    #     KeySchema: 
+    #       -
+    #         AttributeName: date_gmt
+    #         KeyType: HASH
+    #       # -
+    #       #   AttributeName: id
+    #       #   KeyType: RANGE
+    #     ProvisionedThroughput:
+    #       ReadCapacityUnits: 1
+    #       WriteCapacityUnits: 1
     SemiStructuedPostStateMachineTrigger: 
       Type: AWS::Events::Rule
       Properties: 
