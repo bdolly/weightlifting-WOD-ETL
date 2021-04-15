@@ -15,6 +15,7 @@ invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
+
     posts_per_page = event.get('posts_per_page', False) or 1
     page_num = event.get('page', False) or 1
 
@@ -40,6 +41,9 @@ def dump_post_to_bucket(invictus_raw_post, context):
     s3object_success = s3object.put(
         Body=(bytes(json.dumps(post).encode('UTF-8')))
     )
+
+    if not s3object_success:
+        return None
 
     return post
 

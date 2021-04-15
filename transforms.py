@@ -60,6 +60,8 @@ def group_post_content_by_day(post, ctx):
 
     post_text = pd.Series(post.split('\n'))
 
+    print(post_text)
+
     sessions_lists = list(
         map(lambda session:
             session.reset_index(drop=True).tolist(),
@@ -117,9 +119,9 @@ def sessions_to_json_records_by_day(event, ctx):
 def clean_sessions_df_records(event, ctx):
 
     sessions_df = pd.DataFrame(event)
-
+    sessions_df.columns = [re.sub('\:', '', c) for c in sessions_df.columns]
     sessions_df = sessions_df.rename(
-        columns={'Suggested Warm-Up': 'warm_up', 'A.': 'segment_a', 'B.': 'segment_b', 'C.': 'segment_c', 'D.': 'segment_d', 'E.': 'segment_e'}).drop(columns=['s', 'r'])
+        columns={'Suggested Warm-Up': 'warm_up', 'A.': 'segment_a', 'B.': 'segment_b', 'C.': 'segment_c', 'D.': 'segment_d', 'E.': 'segment_e'}).drop(columns=['s', 'r'], errors="ignore")
 
     sessions_df['date'] = pd.to_datetime(
         sessions_df['date'], infer_datetime_format=True)
