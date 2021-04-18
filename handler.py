@@ -32,8 +32,11 @@ def dump_post_to_bucket(invictus_raw_post, context):
     post = invictus_raw_post
     post_date_time_obj = parse(post["date"])
 
-    bucket_path = 'raw/{posted}__{slug}__raw.json'.format(
-        slug=post["slug"], posted=post_date_time_obj.date())
+    # TODO: get yyyy-mm-dd from post["date"] to use as partition
+    partition = re.sub('-', '/', str(post_date_time_obj.date()))
+
+    bucket_path = 'raw/partitioned/{partition}/{posted}__{slug}__raw.json'.format(partition=partition,
+                                                                                  slug=post["slug"], posted=post_date_time_obj.date())
 
     s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
     print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))

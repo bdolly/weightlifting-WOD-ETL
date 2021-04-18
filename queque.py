@@ -10,6 +10,15 @@ invicuts_api_requests_sqs_name = os.environ['INVICTUS_WEIGHTLIFTING_API_QUEQUE_N
 _sqs_client = None
 _s3_client = None
 _sqs_url = None
+_cloudwatch_client = None
+_event_rule_name = 'invictus-weightlifting-de-ProcessUnderscorequequeU-M5RUJJ9J5Q0C'
+
+
+def get_cloudwatch_events_client():
+    global _cloudwatch_client
+    if _cloudwatch_client is None:
+        _cloudwatch_client = boto3.client('events')
+    return _cloudwatch_client
 
 
 def get_sqs_client():
@@ -61,9 +70,13 @@ def push_item_to_queque(event, ctx):
         MessageBody=json.dumps(event))
 
 
-def process_queque_item(event, ctx):
+# TODO: split this up into multipe lambas to make as part of step functions
+
+def process_queque_items(event, ctx):
     sqs = get_sqs_client()
     sqs_url = get_queue_url()
+    events = get_cloudwatch_events_client()
+    events.enable_rule(Name=_event_rule_name)
 
     # grab single sqs item
     response = sqs.receive_message(
@@ -74,6 +87,7 @@ def process_queque_item(event, ctx):
     messages = response.get('Messages')
 
     if not messages:
+        events.disable_rule(Name=_event_rule_name)
         return "No Messages found in {}".format(sqs_url)
 
     receipt = messages[0].get('ReceiptHandle')
@@ -87,7 +101,11 @@ def process_queque_item(event, ctx):
     processed = []
 
     for post in posts:
+        if "_links" in post:
+            del post["_links"]
+
         success = dump_post_to_bucket(post, {})
+
         if success:
             processed.append(success["title"]["rendered"])
 
