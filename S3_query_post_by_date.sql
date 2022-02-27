@@ -1,0 +1,1 @@
+SELECT * FROM s3object s WHERE s."date" like '%2021-01-03%'
