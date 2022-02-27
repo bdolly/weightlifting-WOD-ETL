@@ -15,9 +15,11 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+__psycache__/
 
 # Serverless directories
 .serverless
 
 .env
 node_modules/
+aws-stepfunctions-local-credentials.txt
