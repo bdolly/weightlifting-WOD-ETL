@@ -6,7 +6,8 @@
     "serverless-pseudo-parameters": "^2.5.0"
   },
   "devDependencies": {
-    "serverless-python-requirements": "^5.1.0",
-    "serverless-step-functions": "^2.29.0"
+    "serverless-iam-roles-per-function": "^3.1.0",
+    "serverless-python-requirements": "^5.3.1",
+    "serverless-step-functions": "^3.5.1"
   }
 }
