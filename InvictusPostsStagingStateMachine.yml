@@ -1,0 +1,22 @@
+# dependsOn: InvictusAPIRequestsSQS
+name: InvictusPostsStagingStateMachine
+# loggingConfig:
+#   level: ERROR
+#   includeExecutionData: true
+#   destinations:
+#     - arn:aws:logs:us-east-1:670325714839:log-group:/aws/stepfunc/InvictusPostsStagingStateMachine:*
+# role:
+#   Fn::GetAtt: ["InvictusPostsStagingStateMachine", "Arn"]
+definition:
+  StartAt: GETInvictusPost
+  States:
+    GETInvictusPost:
+      Type: Task
+      Resource:
+        Fn::GetAtt: [get_invictus_post, Arn]
+      Next: StageToS3Bucket
+    StageToS3Bucket:
+      Type: Task
+      End: True
+      Resource:
+        Fn::GetAtt: [dump_post_to_bucket, Arn]

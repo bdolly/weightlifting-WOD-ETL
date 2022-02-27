@@ -7,6 +7,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from transforms import *
 from dateutil.parser import parse
+import uuid
 
 
 s3_resource = boto3.resource('s3')
@@ -16,9 +17,13 @@ invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
 
-    posts_per_page = event.get('posts_per_page', False) or 1
-    page_num = event.get('page', False) or 1
+    posts = event["Records"][0]
+    post = json.loads(posts.get('body', False)) or event
 
+    posts_per_page = post.get('posts_per_page', False) or 1
+    page_num = post.get('page', False) or 1
+    print("GET {} ".format(invictus_api+"&per_page=" +
+                           str(posts_per_page)+"&page="+str(page_num)))
     api_req = requests.get(
         invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num),
         auth=(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
@@ -27,19 +32,33 @@ def GET_invictus_post(event, context):
     return api_req.json()
 
 
+def trigger_staging_statemachine(event, context):
+    print(event)
+    client = boto3.client('stepfunctions')
+    response = client.start_execution(
+        stateMachineArn=os.environ['statemachine_arn'],
+        # name='string',
+        input=json.dumps(event, default=str),
+    )
+    print(response)
+
+
 def dump_post_to_bucket(invictus_raw_post, context):
 
-    post = invictus_raw_post
+    post = invictus_raw_post[0]
     post_date_time_obj = parse(post["date"])
 
     # TODO: get yyyy-mm-dd from post["date"] to use as partition
     partition = re.sub('-', '/', str(post_date_time_obj.date()))
 
-    bucket_path = 'raw/partitioned/{partition}/{posted}__{slug}__raw.json'.format(partition=partition,
-                                                                                  slug=post["slug"], posted=post_date_time_obj.date())
+    bucket_path = 'raw/{partition}/{posted}__{slug}__raw.json'.format(partition=partition,
+                                                                      slug=post["slug"], posted=post_date_time_obj.date())
 
     s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
-    print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
+    print(
+        '- Dumping post "{title}" to bucket: {bucket}'.format(
+            title=post["title"]["rendered"], bucket=bucket_path)
+    )
 
     s3object_success = s3object.put(
         Body=(bytes(json.dumps(post).encode('UTF-8')))

@@ -12,7 +12,8 @@ definition:
       Next: MapItemsToQueque
     MapItemsToQueque:
       Type: Map
-      Next: ProcessQuequeItemsToBucket
+      End: True
+      # Next: ProcessQuequeItemsToBucket
       Iterator:
         StartAt: PushItemToQueque
         States:
@@ -21,9 +22,8 @@ definition:
             End: true
             Resource:
               Fn::GetAtt: [push_item_to_queque, Arn]
-    ProcessQuequeItemsToBucket: 
-      Type: Task
-      End: True
-      Resource:
-        Fn::GetAtt: [process_queque_items, Arn]
-      
+    # ProcessQuequeItemsToBucket:
+    #   Type: Task
+    #   End: True
+    #   Resource:
+    #     Fn::GetAtt: [process_queque_items, Arn]
