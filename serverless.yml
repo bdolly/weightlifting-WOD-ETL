@@ -5,7 +5,7 @@ org: bromeodolly
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-frameworkVersion: "2"
+frameworkVersion: "3"
 
 useDotenv: true
 
@@ -15,39 +15,41 @@ provider:
   runtime: python3.8
   profile: serverless-agent
   stage: dev
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - lambda:InvokeFunction
-        - s3:*
-        - states:*
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - sns:publish
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
-    - Effect: Allow
-      Action:
-        - logs:*
-        - xray:*
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - sqs:*
-      Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME}"
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+            - s3:*
+            - states:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - sns:publish
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        - Effect: Allow
+          Action:
+            - logs:*
+            - xray:*
+          Resource: "*"
+        - Effect: Allow
+          Action:
+            - sqs:*
+          Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME}"
 
   # you can define service wide environment variables here
   environment:
-    INVICTUS_BUCKET: invictus-test-213
+    INVICTUS_BUCKET: invictus-raw-${opt:stage, self:provider.stage}
     INVICTUS_RSS: https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID: "213"
     INVICTUS_WEIGHTLIFTING_API: https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
@@ -58,11 +60,11 @@ provider:
 
 # you can add packaging information here
 package:
-  exclude:
-    - node_modules/**
-    - venv/**
-    - __pycache__/**
-    - test_events
+  patterns:
+    - '!node_modules/**'
+    - '!venv/**'
+    - '!__pycache__/**'
+    - '!test_events'
 
 plugins:
   - serverless-python-requirements
@@ -76,81 +78,60 @@ custom:
 functions:
   calc_sqs_items_from_api:
     handler: queque.calc_sqs_items_from_api
-    package:
-      artifact:
 
   push_item_to_queque:
     handler: queque.push_item_to_queque
-    package:
-      artifact:
-
-  process_queque_items:
-    handler: queque.process_queque_items
-    package:
-      artifact:
+      
+  stage_posts_to_s3: 
+    handler: handler.trigger_staging_statemachine
+    environment:
+      statemachine_arn: ${self:resources.Outputs.StagingStateMachine.Value}
+    reservedConcurrency: 100
     events:
-      - schedule: rate(1 minute)
-    timeout: 58
-    iamRoleStatements:
-      - Effect: "Allow"        
-        Action:
-          - events:*
-          - s3:*
-          - sqs:*
-        Resource: "*"
-        # Resource: "arn:aws:events:us-east-1:670325714839:rule/invictus-weightlifting-de-ProcessUnderscorequequeU-RBMZCDHKNEVQ"
+      - sqs: 
+            # arn: !Ref InvictusAPIRequestsSQs.Arn
+            arn: arn:aws:sqs:us-east-1:670325714839:invictus-weightlifting-api-requests-queque-dev
+            batchSize: 1
+            maximumBatchingWindow: 60
+            functionResponseType: ReportBatchItemFailures
 
   dump_post_to_bucket:
     handler: handler.dump_post_to_bucket
-    package:
-      artifact:
-
+   
   get_invictus_post:
     handler: handler.GET_invictus_post
-    package:
-      artifact:
-    events:
-      - s3:
-          bucket: ${self:provider.environment.INVICTUS_BUCKET}
 
   strip_post_html:
     handler: handler.strip_post_html
-    package:
-      artifact:
 
   group_post_by_day:
     handler: transforms.group_post_content_by_day
-    package:
-      artifact:
 
   segment_days:
     handler: transforms.segment_days
-    package:
-      artifact:
 
   sessions_to_date_records:
     handler: transforms.sessions_to_json_records_by_day
-    package:
-      artifact:
-
+    
   clean_session_records:
     handler: handler.clean_sessions_df_records
-    package:
-      artifact:
-
+   
   save_sessions_to_bucket:
     handler: handler.save_sessions_to_bucket
-    package:
-      artifact:
-
+   
 stepFunctions:
   stateMachines:
-    SemiStructureInvictusPost: 
-      ${file(./SemiStructureInvictusPost_stateMachine.yml)}
-    ScrapeInvictusPostsStateMachine: 
-      ${file(./ScrapeInvictusPostsStateMachine.yml)}
+    SemiStructureInvictusPost: ${file(./SemiStructureInvictusPost_stateMachine.yml)}
+    ScrapeInvictusPostsStateMachine: ${file(./ScrapeInvictusPostsStateMachine.yml)}
+    InvictusPostsStagingStateMachine: ${file(./InvictusPostsStagingStateMachine.yml)}
+    
 
 resources:
+  Outputs:
+    StagingStateMachine:
+      Description: The ARN of the provisioning state machine
+      Value:
+        Ref: InvictusPostsStagingStateMachine
   Resources:
     InvictusAPIRequestsSQS:
       Type: AWS::SQS::Queue
@@ -203,4 +184,8 @@ resources:
           - PolicyName: statePolicy
             PolicyDocument:
               Version: "2012-10-17"
-              Statement: ${self:provider.iamRoleStatements}
+              Statement: ${self:provider.iam.role.statements}
+    RawPostsS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.INVICTUS_BUCKET}
