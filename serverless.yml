@@ -46,15 +46,17 @@ provider:
           Action:
             - sqs:*
           Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME}"
+        
 
   # you can define service wide environment variables here
   environment:
     INVICTUS_BUCKET: invictus-raw-${opt:stage, self:provider.stage}
+    INVICTUS_QUERY_BUCKET: invictus-raw-${opt:stage, self:provider.stage}-athena-queries
     INVICTUS_RSS: https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID: "213"
     INVICTUS_WEIGHTLIFTING_API: https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
-    INVICTUS_USER: ${env:INVICTUS_USER}
-    INVICTUS_PASS: ${env:INVICTUS_PASS}
+    # INVICTUS_USER: ${env:INVICTUS_USER}
+    # INVICTUS_PASS: ${env:INVICTUS_PASS}
     DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
     INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME: ${self:service}-api-requests-queque-${opt:stage, self:provider.stage}
 
@@ -70,6 +72,7 @@ plugins:
   - serverless-python-requirements
   - serverless-iam-roles-per-function
   - serverless-step-functions
+
 
 custom:
   pythonRequirements:
@@ -100,6 +103,21 @@ functions:
    
   get_invictus_post:
     handler: handler.GET_invictus_post
+    timeout: 10 # optional, in seconds, default is 6
+    environment:
+      aws_region: ${self:provider.region}
+      stage: ${self:provider.stage}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - secretsmanager:GetResourcePolicy
+          - secretsmanager:GetSecretValue
+          - secretsmanager:DescribeSecret
+          - secretsmanager:ListSecretVersionIds
+        Resource: "arn:aws:secretsmanager:us-east-1:670325714839:secret:dev/InvictusServices/wp-api-alGCzG"
+      - Effect: "Allow"
+        Action: "secretsmanager:ListSecrets"
+        Resource: "*"
 
   strip_post_html:
     handler: handler.strip_post_html
@@ -118,6 +136,9 @@ functions:
    
   save_sessions_to_bucket:
     handler: handler.save_sessions_to_bucket
+
+  query_raw_workout_bucket: 
+    handler: handler.query_for_workout_this_week
    
 stepFunctions:
   stateMachines:
@@ -125,13 +146,17 @@ stepFunctions:
     ScrapeInvictusPostsStateMachine: ${file(./ScrapeInvictusPostsStateMachine.yml)}
     InvictusPostsStagingStateMachine: ${file(./InvictusPostsStagingStateMachine.yml)}
     
-
 resources:
   Outputs:
     StagingStateMachine:
       Description: The ARN of the provisioning state machine
       Value:
         Ref: InvictusPostsStagingStateMachine
+    AthenaOutputBucket:
+      Value: !Ref AthenaOutputBucket
+    RawPostsS3Bucket:
+      Value: !Ref RawPostsS3Bucket
+
   Resources:
     InvictusAPIRequestsSQS:
       Type: AWS::SQS::Queue
@@ -189,3 +214,52 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.INVICTUS_BUCKET}
+
+    GlueDatabase:
+      Type: AWS::Glue::Database
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseInput:
+          Name: invictus_tables_${self:provider.stage}
+    
+    RawPostsTable:
+      Type: AWS::Glue::Table
+      Properties:
+        CatalogId: !Ref AWS::AccountId
+        DatabaseName: !Ref GlueDatabase
+        TableInput:
+          Name: raw_posts
+          TableType: EXTERNAL_TABLE
+          Parameters:
+            projection.enabled: true
+            projection.date_partition.type: date
+            projection.date_partition.range: '2017/09/23,NOW'
+            projection.date_partition.format: 'yyyy/MM/dd'
+            projection.date_partition.interval: 1
+            projection.date_partition.interval.unit: 'DAYS'
+            storage.location.template: !Join [ '', [ 's3://', !Ref RawPostsS3Bucket, '/raw/$', '{date_partition}' ] ]
+          PartitionKeys:
+            - Name: date_partition
+              Type: string
+          StorageDescriptor:
+            Location: !Sub s3://${RawPostsS3Bucket}/raw/
+            InputFormat: org.apache.hadoop.mapred.TextInputFormat
+            OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+            SerdeInfo:
+              SerializationLibrary: org.apache.hive.hcatalog.data.JsonSerDe
+            Columns:
+              - Name: id
+                Type: int
+              - Name: date
+                Type: string
+              - Name: title 
+                Type: struct<rendered:string>
+              - Name: content 
+                Type: struct<rendered:string>
+              - Name: categories 
+                Type: array<int>                                          
+
+    AthenaOutputBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.INVICTUS_QUERY_BUCKET}

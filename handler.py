@@ -1,3 +1,5 @@
+from botocore.exceptions import ClientError
+import base64
 import os
 import json
 import requests
@@ -6,16 +8,22 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from transforms import *
+from utils import get_secret
 from dateutil.parser import parse
 import uuid
 
 
 s3_resource = boto3.resource('s3')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
+athena_client = boto3.client('athena')
 
 
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
+    secrets = get_secret("dev/InvictusServices/wp-api",
+                         os.environ["aws_region"])
+
+    _secrets = json.loads(secrets)
 
     posts = event["Records"][0]
     post = json.loads(posts.get('body', False)) or event
@@ -26,7 +34,7 @@ def GET_invictus_post(event, context):
                            str(posts_per_page)+"&page="+str(page_num)))
     api_req = requests.get(
         invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num),
-        auth=(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
+        auth=(_secrets['INVICTUS_USER'], _secrets['INVICTUS_PASS'])
     )
 
     return api_req.json()
@@ -50,6 +58,8 @@ def dump_post_to_bucket(invictus_raw_post, context):
 
     # TODO: get yyyy-mm-dd from post["date"] to use as partition
     partition = re.sub('-', '/', str(post_date_time_obj.date()))
+    # add a partition key to our post so that we can project athena partitions
+    post["date_partition"] = partition
 
     bucket_path = 'raw/{partition}/{posted}__{slug}__raw.json'.format(partition=partition,
                                                                       slug=post["slug"], posted=post_date_time_obj.date())
@@ -102,3 +112,13 @@ def save_sessions_to_bucket(session_records, context):
     )
 
     return df.to_json(orient="records")
+
+
+def query_for_workout_this_week(event, context):
+    response = athena_client.create_named_query(
+        Name='TestQuery',
+        Database='invictus_tables_dev',
+        QueryString="SELECT date_partition, content.rendered FROM raw_posts WHERE date_partition >= '2022/02/27' and date_partition <= '2022/03/05'"
+    )
+
+    return response
