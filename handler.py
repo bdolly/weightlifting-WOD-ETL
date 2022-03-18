@@ -1,5 +1,3 @@
-from botocore.exceptions import ClientError
-import base64
 import os
 import json
 import requests
@@ -9,13 +7,14 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from transforms import *
 from utils import get_secret
+import athena_from_s3
 from dateutil.parser import parse
-import uuid
+from datetime import datetime, timedelta, date
 
 
 s3_resource = boto3.resource('s3')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
-athena_client = boto3.client('athena')
+# athena_client = boto3.client('athena')
 
 
 def GET_invictus_post(event, context):
@@ -115,10 +114,32 @@ def save_sessions_to_bucket(session_records, context):
 
 
 def query_for_workout_this_week(event, context):
-    response = athena_client.create_named_query(
-        Name='TestQuery',
-        Database='invictus_tables_dev',
-        QueryString="SELECT date_partition, content.rendered FROM raw_posts WHERE date_partition >= '2022/02/27' and date_partition <= '2022/03/05'"
-    )
 
-    return response
+    day = date.today().strftime("%Y/%m/%d")
+    dt = datetime.strptime(day, '%Y/%m/%d')
+    # start on a sunday
+    start = dt - timedelta(days=dt.weekday()) - timedelta(days=1)
+    # end on a sat
+    end = start + timedelta(days=6)
+    start_partition = start.strftime('%Y/%m/%d')
+    end_partition = end.strftime('%Y/%m/%d')
+
+    session = boto3.Session()
+
+    query = f"SELECT date_partition, content.rendered FROM {os.environ['athena_db']}.raw_posts WHERE date_partition >= '{start_partition}' and date_partition <= '{end_partition}'"
+
+    params = {
+        'region': os.environ["aws_region"],
+        'database': os.environ["athena_db"],
+        'bucket': os.environ['athena_output_bucket'],
+        'path': 'temp/',
+        'query': query
+    }
+    print(params)
+
+    # Fucntion for obtaining query results and location
+    location, data = athena_from_s3.query_results(session, params)
+    print("Locations: ", location)
+    print("Result Data: ")
+    print(data)
+    return data

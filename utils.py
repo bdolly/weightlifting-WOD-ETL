@@ -1,12 +1,7 @@
 from botocore.exceptions import ClientError
-import base64
-import os
-import json
 import boto3
-
-# Use this code snippet in your app.
-# If you need more information about configurations or implementing the sample code, visit the AWS docs:
-# https://aws.amazon.com/developers/getting-started/python/
+import base64
+import pandas as pd
 
 
 def get_secret(secret_name, region_name="us-east-1"):

@@ -46,6 +46,41 @@ provider:
           Action:
             - sqs:*
           Resource: "arn:aws:sqs:${opt:region, self:provider.region}:*:${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME}"
+        - Effect: "Allow"
+          Action:
+            - "glue:*"
+          Resource: "*"
+        - Effect: "Allow"
+          Action:
+            - "athena:*"
+          Resource: "*"
+        - Effect: "Allow"        
+          Action:
+            - athena:StartQueryExecution
+            - athena:GetQueryExecution
+            - athena:GetQueryResults
+          Resource: "arn:aws:athena:us-east-1:670325714839:workgroup/primary"
+        - Effect: "Allow"
+          Action: 
+            - glue:*
+          Resource: 
+            - "arn:aws:glue:us-east-1:670325714839:catalog"
+            - "arn:aws:glue:us-east-1:670325714839:database/invictus_tables_dev"
+            - "arn:aws:glue:us-east-1:670325714839:table/invictus_tables_dev/raw_posts"
+        - Effect: "Allow"
+          Action: 
+            - s3:PutObject
+            - s3:GetObject
+            - s3:GetBucketLocation
+            - s3:ListBucket
+            - s3:AbortMultipartUpload
+            - s3:ListMultipartUploadParts
+          Resource: 
+            - Fn::GetAtt: [AthenaOutputBucket, Arn]
+            - Fn::GetAtt: [RawPostsS3Bucket, Arn]
+            - !Sub arn:aws:s3:::${RawPostsS3Bucket}/raw/*
+            - !Sub arn:aws:s3:::${RawPostsS3Bucket}/raw/
+
         
 
   # you can define service wide environment variables here
@@ -55,8 +90,6 @@ provider:
     INVICTUS_RSS: https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID: "213"
     INVICTUS_WEIGHTLIFTING_API: https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
-    # INVICTUS_USER: ${env:INVICTUS_USER}
-    # INVICTUS_PASS: ${env:INVICTUS_PASS}
     DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
     INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME: ${self:service}-api-requests-queque-${opt:stage, self:provider.stage}
 
@@ -84,6 +117,14 @@ functions:
 
   push_item_to_queque:
     handler: queque.push_item_to_queque
+    events: 
+    # get new posts every Monday at midnight EST (5am GMT)
+      - schedule: 
+          enabled: true
+          rate: cron(0 5 ? * Mon *)
+          input: 
+            page: 1
+            post_per_page: 1
       
   stage_posts_to_s3: 
     handler: handler.trigger_staging_statemachine
@@ -139,6 +180,14 @@ functions:
 
   query_raw_workout_bucket: 
     handler: handler.query_for_workout_this_week
+    timeout: 30 # optional, in seconds, default is 6
+    environment:
+      aws_region: ${self:provider.region}
+      stage: ${self:provider.stage}
+      athena_output_bucket: !Ref AthenaOutputBucket
+      athena_db: !Ref GlueDatabase
+   
+
    
 stepFunctions:
   stateMachines:
@@ -156,6 +205,8 @@ resources:
       Value: !Ref AthenaOutputBucket
     RawPostsS3Bucket:
       Value: !Ref RawPostsS3Bucket
+    GlueDatabase: 
+      Value: !Ref GlueDatabase
 
   Resources:
     InvictusAPIRequestsSQS:
