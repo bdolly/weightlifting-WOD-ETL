@@ -9,7 +9,10 @@ import datetime
 def partition_by(regex, source):
     """mask our series by a regex"""
     source = pd.Series(source, dtype=str)
-    return source[source.str.contains(regex)]
+    print("extracted series", source.str.extract(regex))
+    masked_series = source[source.str.contains(regex)]
+    print("masked_series", masked_series)
+    return masked_series
 
 
 def get_pairwise_series_indexes(masked_arr):
@@ -35,8 +38,9 @@ def get_groups(index_list, source):
 def group_source_by(regex, source):
     """sub-divide a list by a given regex"""
     weekdays = partition_by(regex, source)
-
+    print("weekdays", weekdays)
     weekday_indexes = get_pairwise_series_indexes(weekdays.index)
+    print("weekday_indexes", weekday_indexes)
 
     if len(weekday_indexes):
         # add in a pair to capture to the end of the source arr
@@ -59,8 +63,7 @@ def group_post_content_by_day(post, ctx):
         '|'.join([f"({x})" for x in days]), re.IGNORECASE)
 
     post_text = pd.Series(post.split('\n'))
-
-    print(post_text)
+    print("post_text", post_text)
 
     sessions_lists = list(
         map(lambda session:
@@ -75,6 +78,7 @@ def group_post_content_by_day(post, ctx):
 def segment_days(event, ctx):
     segment_regex = re.compile(
         '(Session)|(Suggested Warm-Up)|^[A-F].$', re.IGNORECASE)
+
     segmented_sessions = [
         [x.tolist() for x in group_source_by(segment_regex, pd.Series(session))] for session
         in event["sessions"]

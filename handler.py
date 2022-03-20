@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import urllib
 import boto3
 import numpy as np
 import pandas as pd
@@ -10,6 +11,8 @@ from utils import get_secret
 import athena_from_s3
 from dateutil.parser import parse
 from datetime import datetime, timedelta, date
+from twilio.rest import Client
+import html
 
 
 s3_resource = boto3.resource('s3')
@@ -79,13 +82,12 @@ def dump_post_to_bucket(invictus_raw_post, context):
     return post
 
 
-def strip_post_html(post, ctx):
+def strip_post_html(renderedPostContent, ctx):
     """
         strip HTML from post conent because it's not well structured markup.
     """
 
-    post_text_raw = BeautifulSoup(
-        post['content']['rendered'], 'html.parser')
+    post_text_raw = BeautifulSoup(renderedPostContent, 'html.parser')
 
     return post_text_raw.get_text()
 
@@ -142,4 +144,37 @@ def query_for_workout_this_week(event, context):
     print("Locations: ", location)
     print("Result Data: ")
     print(data)
-    return data
+    # send_sms({"Records": data})
+    return {"Records": data}
+
+
+def send_sms(event, context):
+
+    sessions = event.get('sessions', False)
+    print("sessions", len(sessions))
+
+    txt = ["No Session Found", "Get Some Rest"]
+
+    weekday_num = datetime.today().weekday() - 1
+    print("weekday_num", weekday_num)
+
+    if sessions and weekday_num <= len(sessions):
+        txt = sessions[weekday_num]
+
+    print("txt", "\n".join(txt))
+
+    secrets = get_secret("dev/Twillio/api",
+                         os.environ["aws_region"])
+
+    _secrets = json.loads(secrets)
+
+    client = Client(_secrets['TWILIO_SID'], _secrets['TWILIO_AUTH_TOKEN'])
+
+    message = client.messages \
+        .create(
+            body="\n".join(txt),
+            from_=os.environ['from_phone_num'],
+            to=os.environ['to_phone_num'],
+        )
+
+    return message.sid

@@ -1,0 +1,38 @@
+name: WODNotificationStateMachine
+role:
+  Fn::GetAtt: ["WODNotificationStateMachineRole", "Arn"]
+events:
+  - schedule:
+      enabled: true
+      # run everyday at 5PM EST (9PM GMT)
+      rate: cron(0 21 * * ? *)
+definition:
+  Comment: "Process post from raw bucket(s) and send today's wod via sms"
+  StartAt: get_raw_post_for_week
+  States:
+    get_raw_post_for_week: 
+      Type: Task
+      Resource: 
+        Fn::GetAtt: [query_raw_workout_bucket, Arn]
+      Next: strip_post_html
+    strip_post_html: 
+      Type: Task 
+      InputPath: "$.Records.[0]['rendered']"
+      Resource: 
+        Fn::GetAtt: [strip_post_html, Arn]
+      Next: group_week_by_day
+    group_week_by_day:
+      Type: Task
+      Resource:
+        Fn::GetAtt: [group_post_by_day, Arn]
+      Next: send_sms      
+    send_sms:
+      Type: Task
+      # InputPath: "$.sessions[0]"
+      Resource:
+        Fn::GetAtt: [send_sms, Arn]
+      End: True
+
+
+
+

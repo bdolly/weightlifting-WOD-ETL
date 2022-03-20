@@ -24,19 +24,19 @@ provider:
             - s3:*
             - states:*
           Resource: "*"
-        - Effect: Allow
-          Action:
-            - sns:publish
-          Resource: "*"
-        - Effect: Allow
-          Action:
-            - dynamodb:Query
-            - dynamodb:Scan
-            - dynamodb:GetItem
-            - dynamodb:PutItem
-            - dynamodb:UpdateItem
-            - dynamodb:DeleteItem
-          Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        # - Effect: Allow
+        #   Action:
+        #     - sns:publish
+        #   Resource: "*"
+        # - Effect: Allow
+        #   Action:
+        #     - dynamodb:Query
+        #     - dynamodb:Scan
+        #     - dynamodb:GetItem
+        #     - dynamodb:PutItem
+        #     - dynamodb:UpdateItem
+        #     - dynamodb:DeleteItem
+        #   Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
         - Effect: Allow
           Action:
             - logs:*
@@ -90,8 +90,11 @@ provider:
     INVICTUS_RSS: https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID: "213"
     INVICTUS_WEIGHTLIFTING_API: https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
-    DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
+    # DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
     INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME: ${self:service}-api-requests-queque-${opt:stage, self:provider.stage}
+    TWILLIO_ACCOUNT_PHONE_NUMBER: "+16315282256"	
+    TWILLIO_TO_PHONE_NUMBER: "+14012560086"	
+
 
 # you can add packaging information here
 package:
@@ -105,7 +108,7 @@ plugins:
   - serverless-python-requirements
   - serverless-iam-roles-per-function
   - serverless-step-functions
-
+  - serverless-prune-plugin
 
 custom:
   pythonRequirements:
@@ -166,17 +169,17 @@ functions:
   group_post_by_day:
     handler: transforms.group_post_content_by_day
 
-  segment_days:
-    handler: transforms.segment_days
+  # segment_days:
+    # handler: transforms.segment_days
 
-  sessions_to_date_records:
-    handler: transforms.sessions_to_json_records_by_day
+  # sessions_to_date_records:
+  #   handler: transforms.sessions_to_json_records_by_day
     
-  clean_session_records:
-    handler: handler.clean_sessions_df_records
+  # clean_session_records:
+  #   handler: handler.clean_sessions_df_records
    
-  save_sessions_to_bucket:
-    handler: handler.save_sessions_to_bucket
+  # save_sessions_to_bucket:
+  #   handler: handler.save_sessions_to_bucket
 
   query_raw_workout_bucket: 
     handler: handler.query_for_workout_this_week
@@ -187,13 +190,32 @@ functions:
       athena_output_bucket: !Ref AthenaOutputBucket
       athena_db: !Ref GlueDatabase
    
+  send_sms:
+    handler: handler.send_sms
+    timeout: 10 # optional, in seconds, default is 6
+    environment:
+      aws_region: ${self:provider.region}
+      from_phone_num: ${self:provider.environment.TWILLIO_ACCOUNT_PHONE_NUMBER}
+      to_phone_num: ${self:provider.environment.TWILLIO_TO_PHONE_NUMBER}
+    iamRoleStatements:
+      - Effect: "Allow"        
+        Action:
+          - secretsmanager:GetResourcePolicy
+          - secretsmanager:GetSecretValue
+          - secretsmanager:DescribeSecret
+          - secretsmanager:ListSecretVersionIds
+        Resource: "arn:aws:secretsmanager:us-east-1:670325714839:secret:dev/Twillio/api-gT5wiw"
+      - Effect: "Allow"
+        Action: "secretsmanager:ListSecrets"
+        Resource: "*"
 
    
 stepFunctions:
   stateMachines:
-    SemiStructureInvictusPost: ${file(./SemiStructureInvictusPost_stateMachine.yml)}
+    # SemiStructureInvictusPost: ${file(./SemiStructureInvictusPost_stateMachine.yml)}
     ScrapeInvictusPostsStateMachine: ${file(./ScrapeInvictusPostsStateMachine.yml)}
     InvictusPostsStagingStateMachine: ${file(./InvictusPostsStagingStateMachine.yml)}
+    WODNotificationStateMachine: ${file(./WODNotificationStateMachine.yml)}
     
 resources:
   Outputs:
@@ -214,35 +236,35 @@ resources:
       Properties:
         QueueName: ${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_QUEQUE_NAME}
         VisibilityTimeout: 30
-    WorkoutPostsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
-        AttributeDefinitions:
-          - AttributeName: date
-            AttributeType: S
-          - AttributeName: session
-            AttributeType: S
-        KeySchema:
-          - AttributeName: date
-            KeyType: HASH
-          - AttributeName: session
-            KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    SemiStructuedPostStateMachineTrigger:
-      Type: AWS::Events::Rule
-      Properties:
-        Name: SemiStructureInvictusPost_trigger
-        State: DISABLED
-        Description: trigger the SemiStructureInvictusPost state machine
-        ScheduleExpression: rate(10 minutes)
-        Targets:
-          - Arn:
-              Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
-            Id: SemiStructure_InvictusPost_StateMachine
-            RoleArn: arn:aws:iam::670325714839:role/service-role/AWS_Events_Invoke_Step_Functions_1766034610
+    # WorkoutPostsTable:
+    #   Type: AWS::DynamoDB::Table
+    #   Properties:
+    #     TableName: ${self:provider.environment.DYNAMODB_TABLE}
+    #     AttributeDefinitions:
+    #       - AttributeName: date
+    #         AttributeType: S
+    #       - AttributeName: session
+    #         AttributeType: S
+    #     KeySchema:
+    #       - AttributeName: date
+    #         KeyType: HASH
+    #       - AttributeName: session
+    #         KeyType: RANGE
+    #     ProvisionedThroughput:
+    #       ReadCapacityUnits: 1
+    #       WriteCapacityUnits: 1
+    # SemiStructuedPostStateMachineTrigger:
+    #   Type: AWS::Events::Rule
+    #   Properties:
+    #     Name: SemiStructureInvictusPost_trigger
+    #     State: DISABLED
+    #     Description: trigger the SemiStructureInvictusPost state machine
+    #     ScheduleExpression: rate(10 minutes)
+    #     Targets:
+    #       - Arn:
+    #           Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
+    #         Id: SemiStructure_InvictusPost_StateMachine
+    #         RoleArn: arn:aws:iam::670325714839:role/service-role/AWS_Events_Invoke_Step_Functions_1766034610
     SemiStructuedPostStateMachineRole:
       Type: AWS::IAM::Role
       Properties:
@@ -314,3 +336,22 @@ resources:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: ${self:provider.environment.INVICTUS_QUERY_BUCKET}
+    
+    WODNotificationStateMachineRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: WODNotificationStateMachineRole
+        # Path: /path_of_state_machine_roles/
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - states.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: statePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement: ${self:provider.iam.role.statements}
