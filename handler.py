@@ -10,7 +10,7 @@ from transforms import *
 from utils import get_secret
 import athena_from_s3
 from dateutil.parser import parse
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from twilio.rest import Client
 import html
 
@@ -154,8 +154,11 @@ def send_sms(event, context):
     print("sessions", len(sessions))
 
     txt = ["No Session Found", "Get Some Rest"]
+    print(datetime.now(timezone(timedelta(hours=-5), 'EST')))
+    # datetime.now(timezone(timedelta(hours=-5), 'EST'))
 
-    weekday_num = datetime.today().weekday() - 1
+    weekday_num = datetime.now(
+        timezone(timedelta(hours=-5), 'EST')).weekday()
     print("weekday_num", weekday_num)
 
     if sessions and weekday_num <= len(sessions):
