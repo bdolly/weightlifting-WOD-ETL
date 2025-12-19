@@ -111,5 +111,5 @@ SemiStructureInvictusPost:
                 Name.$: "$$.Execution.Name"
                 StartTime.$: "$$.Execution.StartTime"
                 # WeeksProcessed.$: "$$.Execution.Input.posts_per_page"
-              PhoneNumber: "+14012560086"
+              PhoneNumber: ${env:NOTIFICATION_PHONE_NUMBER}
             End: true

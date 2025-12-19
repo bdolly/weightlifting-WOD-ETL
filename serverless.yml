@@ -6,15 +6,17 @@ org: bromeodolly
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
 # Pinned to V2.x to avoid V4 breaking changes
-frameworkVersion: '>=2.0.0 <3.0.0'
+# IMPORTANT: Always use 'npx serverless' instead of global 'serverless' command
+# The global command uses V4 which is incompatible with this project
+frameworkVersion: '>=2.0.0'
 
 useDotenv: true
 
 provider:
   name: aws
-  region: us-east-1
+  region: ${env:AWS_REGION}
   runtime: python3.9
-  profile: serverless-agent
+  profile: ${env:AWS_PROFILE}
   stage: dev
   iamRoleStatements:
     - Effect: Allow
@@ -164,21 +166,23 @@ resources:
             Value: ${opt:stage, self:provider.stage}
           - Key: Service
             Value: ${self:service}
-    WordPressCredentialsSecret:
-      Type: AWS::SecretsManager::Secret
-      Properties:
-        Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
-        Description: WordPress API credentials for Invictus blog
-        SecretString: !Sub |
-          {
-            "username": "${env:INVICTUS_USER, ''}",
-            "password": "${env:INVICTUS_PASS, ''}"
-          }
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
+    # WordPressCredentialsSecret:
+    #   Type: AWS::SecretsManager::Secret
+    #   Properties:
+    #     Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
+    #     Description: WordPress API credentials for Invictus blog
+    #     # Note: If secret already exists, import it into the stack using import-secret.sh
+    #     # SecretString is only used when creating new secrets
+    #     SecretString: !Sub |
+    #       {
+    #         "username": "${env:INVICTUS_USER, ''}",
+    #         "password": "${env:INVICTUS_PASS, ''}"
+    #       }
+    #     Tags:
+    #       - Key: Environment
+    #         Value: ${opt:stage, self:provider.stage}
+    #       - Key: Service
+    #         Value: ${self:service}
     SemiStructuedPostStateMachineTrigger: 
       Type: AWS::Events::Rule
       Properties: 
@@ -194,7 +198,7 @@ resources:
     SemiStructuedPostStateMachineRole:
       Type: AWS::IAM::Role
       Properties:
-        RoleName: SemiStructuedPostStateMachineRole
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-StateMachineRole
         # Path: /path_of_state_machine_roles/
         AssumeRolePolicyDocument:
           Statement:
