@@ -33,6 +33,15 @@ package:
     - '!__pycache__/**'
     - '!test_events/**'
     - '!.serverless/**'
+    - '!*.pyc'
+    - '!*.pyo'
+    - '!*.pyd'
+    - '!*.so'
+    - '!*.egg-info/**'
+    - '!tests/**'
+    - '!test/**'
+    - '!*.md'
+    - '!docs/**'
 
 plugins:
   - serverless-python-requirements
@@ -42,6 +51,15 @@ custom:
   pythonRequirements:
     dockerizePip: non-linux
     dockerImage: public.ecr.aws/sam/build-python3.9
+    fileName: requirements-prod.txt
+    slim: true
+    strip: true
+    zip: true
+    layer: false
+    # Exclude unnecessary files from packages
+    invalidateCaches: false
+    pipCmdExtraArgs:
+      - --no-cache-dir
 
 functions: ${file(./serverless/functions.yml)}
 
