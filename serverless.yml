@@ -1,18 +1,18 @@
-service: invictus-weightlifting
+service: invictus-weightlifting-wod-etl
 
 app: invictus-weightlifting-app
 org: bromeodolly
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-frameworkVersion: '2'
+frameworkVersion: '>=2.0.0'
 
 useDotenv: true
 
 provider:
   name: aws
   region: us-east-1
-  runtime: python3.8
+  runtime: python3.9
   profile: serverless-agent
   stage: dev
   iamRoleStatements:
@@ -43,7 +43,7 @@ provider:
 
 # you can define service wide environment variables here
   environment:
-    INVICTUS_BUCKET: invictus-test-213
+    INVICTUS_BUCKET: ${env:INVICTUS_BUCKET}-${opt:stage, self:provider.stage}
     INVICTUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
     INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
     INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
@@ -65,11 +65,11 @@ package:
 plugins:
   - serverless-python-requirements
   - serverless-step-functions
-  - serverless-pseudo-parameters
 
 custom:
   pythonRequirements:
     dockerizePip: non-linux
+    dockerImage: public.ecr.aws/sam/build-python3.9
 
 functions:
 
