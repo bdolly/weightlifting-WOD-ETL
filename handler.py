@@ -2,8 +2,6 @@ import os
 import json
 import requests
 import boto3
-import numpy as np
-import pandas as pd
 from bs4 import BeautifulSoup
 from transforms import *
 from dateutil.parser import parse
@@ -48,7 +46,7 @@ def dump_post_to_bucket(invictus_raw_post, context):
     s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
     print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
 
-    s3object_success = s3object.put(
+    s3object.put(
         Body=(bytes(json.dumps(post).encode('UTF-8')))
     )
 
@@ -67,23 +65,33 @@ def strip_post_html(post, ctx):
 
 
 def save_sessions_to_bucket(session_records, context):
-
-    df = pd.DataFrame(session_records)
-    df['date'] = pd.to_datetime(
-        df['date'], infer_datetime_format=True)
-
+    """Save session records to S3 bucket using standard library"""
+    # Parse dates and find min/max
+    dates = []
+    for record in session_records:
+        if 'date' in record:
+            date_obj = parse(record['date'])
+            dates.append(date_obj)
+            # Ensure date is formatted as YYYY-MM-DD
+            record['date'] = date_obj.strftime('%Y-%m-%d')
+    
+    if not dates:
+        raise ValueError("No dates found in session records")
+    
+    start_date = min(dates).date()
+    end_date = max(dates).date()
+    
     bucket_path = 'weekly/{start_date}__{end_date}--5-day-weightlifting-program.json'.format(
-        start_date=df["date"].min().date(), end_date=df["date"].max().date())
-
-    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+        start_date=start_date, end_date=end_date)
 
     s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
 
-    # # save to bucket as lines of json so that we can query it using S3 select
-    s3object_success = s3object.put(
-        Body=(
-            str(df.to_json(orient="records", lines=True))
-        )
+    # Save to bucket as lines of json so that we can query it using S3 select
+    # JSON Lines format: one JSON object per line
+    json_lines = '\n'.join(json.dumps(record) for record in session_records)
+    
+    s3object.put(
+        Body=json_lines
     )
 
-    return df.to_json(orient="records")
+    return json.dumps(session_records)
