@@ -16,8 +16,25 @@ var/
 .installed.cfg
 *.egg
 
-# Serverless directories
-.serverless
+# Serverless Framework
+.serverless/
+.serverless/**
+*.zip
+.serverless_plugins/
+.serverless_requirements/
+requirements.zip
+package.zip
+.serverless-python-requirements/
+.serverless_requirements_cache/
+.serverless_requirements_downloadCache/
+.serverless_requirements_slspyc/
+.serverless_requirements_slspyc/**
+# Generated CloudFormation templates
+cloudformation-template-*.json
+serverless-state.json
+# Generated requirements files (keep root requirements.txt)
+.serverless/requirements.txt
+.serverless/requirements
 
 .env
 node_modules/
@@ -25,3 +42,30 @@ node_modules/
 # uv
 .venv/
 uv.lock
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.hypothesis/
+test-results/
+*.cover
+.cache
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Linting
+.ruff_cache/

@@ -1,0 +1,10 @@
+INVICTUS_BUCKET: ${env:INVICTUS_BUCKET}-${opt:stage, self:provider.stage}
+INVICTUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
+INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
+INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
+INVICTUS_USER : ${env:INVICTUS_USER}
+INVICTUS_PASS : ${env:INVICTUS_PASS}
+INVICTUS_SECRET_NAME: ${self:service}-wordpress-credentials-${opt:stage, self:provider.stage}
+IDEMPOTENCY_TABLE: ${self:service}-idempotency-${opt:stage, self:provider.stage}
+DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
+

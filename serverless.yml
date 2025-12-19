@@ -1,213 +1,110 @@
-service: invictus-weightlifting
+# Main Serverless Framework configuration file
+# This file references modular configuration files for better maintainability
+
+service: invictus-weightlifting-wod-etl
 
 app: invictus-weightlifting-app
 org: bromeodolly
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-frameworkVersion: '2'
+# Pinned to V3.x for stability
+# IMPORTANT: Always use 'npx serverless' instead of global 'serverless' command
+frameworkVersion: '>=3.0.0 <4.0.0'
 
 useDotenv: true
 
 provider:
   name: aws
-  region: us-east-1
-  runtime: python3.8
-  profile: serverless-agent
+  region: ${env:AWS_REGION}
+  runtime: python3.9
+  profile: ${env:AWS_PROFILE, 'serverless-invictus-agent'}
   stage: dev
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - lambda:InvokeFunction
-        - s3:*
-        - states:*
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - sns:publish
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
-    - Effect: Allow
-      Action: 
-       - logs:*
-       - xray:*
-      Resource: "*"
-
-# you can define service wide environment variables here
-  environment:
-    INVICTUS_BUCKET: invictus-test-213
-    INVICTUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
-    INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
-    INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
-    INVICTUS_USER : ${env:INVICTUS_USER}
-    INVICTUS_PASS : ${env:INVICTUS_PASS}
-    INVICTUS_SECRET_NAME: ${self:service}-wordpress-credentials-${opt:stage, self:provider.stage}
-    IDEMPOTENCY_TABLE: ${self:service}-idempotency-${opt:stage, self:provider.stage}
-    DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
-
+  iam:
+    role:
+      statements: ${file(./serverless/iam.yml)}
+  environment: ${file(./serverless/environment.yml)}
 
 # you can add packaging information here
 package:
-  exclude:
-    - node_modules/**
-    - venv/**
-    - __pycache__/**
-    - test_events
+  patterns:
+    - '!node_modules/**'
+    - '!venv/**'
+    - '!__pycache__/**'
+    - '!test_events/**'
+    - '!.serverless/**'
+    - '!*.pyc'
+    - '!*.pyo'
+    - '!*.pyd'
+    - '!*.so'
+    - '!*.egg-info/**'
+    - '!tests/**'
+    - '!test/**'
+    - '!*.md'
+    - '!docs/**'
 
 plugins:
   - serverless-python-requirements
   - serverless-step-functions
-  - serverless-pseudo-parameters
 
 custom:
   pythonRequirements:
     dockerizePip: non-linux
+    dockerImage: public.ecr.aws/sam/build-python3.9
+    fileName: requirements-prod.txt
+    slim: true
+    strip: true
+    zip: true
+    layer: true
+    # Exclude unnecessary files from packages
+    invalidateCaches: false
+    pipCmdExtraArgs:
+      - --no-cache-dir
+    # More aggressive exclusions for pandas/numpy
+    slimPatterns:
+      - '**/*.pyc'
+      - '**/__pycache__/**'
+      - '**/tests/**'
+      - '**/test/**'
+      - '**/*.so.dSYM/**'
+      - '**/dist-info/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/site-packages/numpy/tests/**'
+      - '**/site-packages/pandas/doc/**'
+      - '**/site-packages/numpy/doc/**'
+      - '**/site-packages/pandas/benchmarks/**'
+      - '**/site-packages/numpy/benchmarks/**'
+      - '**/site-packages/pandas/.github/**'
+      - '**/site-packages/numpy/.github/**'
+      - '**/site-packages/pandas/_libs/tslibs/tests/**'
+      - '**/site-packages/pandas/_libs/window/**'
+      - '**/site-packages/numpy/f2py/tests/**'
+      - '**/site-packages/numpy/linalg/tests/**'
+      - '**/site-packages/numpy/ma/tests/**'
+      - '**/site-packages/numpy/matrixlib/tests/**'
+      - '**/site-packages/numpy/polynomial/tests/**'
+      - '**/site-packages/numpy/random/tests/**'
+      - '**/site-packages/numpy/testing/**'
+      - '**/site-packages/numpy/tests/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/site-packages/pandas/util/tests/**'
+      - '**/site-packages/pandas/_testing/**'
+      - '**/site-packages/pandas/io/tests/**'
+      - '**/site-packages/pandas/plotting/tests/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/*.pyx'
+      - '**/*.pxd'
+      - '**/*.pxi'
+      - '**/*.h'
+      - '**/*.c'
+      - '**/*.cpp'
+      - '**/*.f'
+      - '**/*.f90'
 
-functions:
-
-  dump_post_to_bucket:
-    handler: handler.dump_post_to_bucket
-    package:
-      artifact:
-
-  get_invictus_post:
-    handler: handler.GET_invictus_post
-    package:
-      artifact:
-    events:
-      - s3:
-          bucket: ${self:provider.environment.INVICTUS_BUCKET}
-
-  strip_post_html: 
-    handler: handler.strip_post_html
-    package:
-      artifact:
-
-  group_post_by_day: 
-    handler: transforms.group_post_content_by_day
-    package:
-      artifact:
-
-  segment_days: 
-    handler: transforms.segment_days
-    package:
-      artifact:
-      
-  sessions_to_date_records: 
-    handler: transforms.sessions_to_json_records_by_day
-    package:
-      artifact:
-
-  clean_session_records: 
-    handler: handler.clean_sessions_df_records
-    package:
-      artifact:
-
-  save_sessions_to_bucket: 
-    handler: handler.save_sessions_to_bucket
-    package:
-      artifact:
-  
+functions: ${file(./serverless/functions.yml)}
 
 stepFunctions:
   stateMachines:
     ${file(./SemiStructureInvictusPost_stateMachine.yml)}
 
-resources:
-  Resources: 
-    WorkoutPostsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
-        AttributeDefinitions: 
-          -
-            AttributeName: date
-            AttributeType: S
-          -
-            AttributeName: session
-            AttributeType: S
-        KeySchema: 
-          -
-            AttributeName: date
-            KeyType: HASH
-          -
-            AttributeName: session
-            KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    IdempotencyTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-idempotency-${opt:stage, self:provider.stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: idempotency_key
-            AttributeType: S
-        KeySchema:
-          - AttributeName: idempotency_key
-            KeyType: HASH
-        TimeToLiveSpecification:
-          Enabled: true
-          AttributeName: ttl
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-    WordPressCredentialsSecret:
-      Type: AWS::SecretsManager::Secret
-      Properties:
-        Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
-        Description: WordPress API credentials for Invictus blog
-        SecretString: !Sub |
-          {
-            "username": "${env:INVICTUS_USER, ''}",
-            "password": "${env:INVICTUS_PASS, ''}"
-          }
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-    SemiStructuedPostStateMachineTrigger: 
-      Type: AWS::Events::Rule
-      Properties: 
-        Name: SemiStructureInvictusPost_trigger
-        State: DISABLED
-        Description: trigger the SemiStructureInvictusPost state machine
-        ScheduleExpression: rate(10 minutes)
-        Targets: 
-          - Arn: 
-              Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
-            Id: SemiStructure_InvictusPost_StateMachine
-            RoleArn: arn:aws:iam::670325714839:role/service-role/AWS_Events_Invoke_Step_Functions_1766034610
-    SemiStructuedPostStateMachineRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: SemiStructuedPostStateMachineRole
-        # Path: /path_of_state_machine_roles/
-        AssumeRolePolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - states.amazonaws.com
-              Action:
-                - sts:AssumeRole
-        Policies:
-          - PolicyName: statePolicy
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement: 
-                ${self:provider.iamRoleStatements}
-                
-                
+resources: ${file(./serverless/resources.yml)}

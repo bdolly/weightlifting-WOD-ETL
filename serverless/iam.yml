@@ -1,0 +1,39 @@
+# S3 Permissions - Scoped to specific bucket and paths
+- Effect: Allow
+  Action:
+    - s3:GetObject
+    - s3:PutObject
+    - s3:DeleteObject
+    - s3:ListBucket
+  Resource:
+    - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}"
+    - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
+# DynamoDB Permissions - Scoped to specific tables
+- Effect: Allow
+  Action:
+    - dynamodb:Query
+    - dynamodb:Scan
+    - dynamodb:GetItem
+    - dynamodb:PutItem
+    - dynamodb:UpdateItem
+    - dynamodb:DeleteItem
+  Resource:
+    - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+    - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.IDEMPOTENCY_TABLE}"
+# CloudWatch Logs - Scoped to this service's log groups
+- Effect: Allow
+  Action:
+    - logs:CreateLogGroup
+    - logs:CreateLogStream
+    - logs:PutLogEvents
+    - logs:DescribeLogStreams
+  Resource:
+    - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*"
+    - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*:*"
+# X-Ray Permissions - Write-only for this service
+- Effect: Allow
+  Action:
+    - xray:PutTraceSegments
+    - xray:PutTelemetryRecords
+  Resource: "*"
+

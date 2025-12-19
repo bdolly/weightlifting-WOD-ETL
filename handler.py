@@ -17,14 +17,25 @@ def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
     posts_per_page = event.get('posts_per_page', False) or 1
     page_num = event.get('page', False) or 1
-
-    api_req = requests.get(
-        invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num),
-        auth=(os.environ['INVICTUS_USER'], os.environ['INVICTUS_PASS'])
-    )
+    url = invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num)
+    
+    # Add browser-like headers to bypass Mod_Security
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/html, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    
+    api_req = requests.get(url, headers=headers)
+    # check if the request is successful
+    if api_req.status_code != 200:
+        raise Exception(f"Failed to get invictus post: {api_req.status_code} {api_req.text}")
 
     return api_req.json()
-
+    
 
 def dump_post_to_bucket(invictus_raw_post, context):
 

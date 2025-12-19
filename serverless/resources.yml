@@ -1,0 +1,145 @@
+Resources: 
+  WorkoutPostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:provider.environment.DYNAMODB_TABLE}
+      AttributeDefinitions: 
+        -
+          AttributeName: date
+          AttributeType: S
+        -
+          AttributeName: session
+          AttributeType: S
+      KeySchema: 
+        -
+          AttributeName: date
+          KeyType: HASH
+        -
+          AttributeName: session
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+  IdempotencyTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ${self:service}-idempotency-${opt:stage, self:provider.stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: idempotency_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: idempotency_key
+          KeyType: HASH
+      TimeToLiveSpecification:
+        Enabled: true
+        AttributeName: ttl
+      Tags:
+        - Key: Environment
+          Value: ${opt:stage, self:provider.stage}
+        - Key: Service
+          Value: ${self:service}
+  # WordPressCredentialsSecret:
+  #   Type: AWS::SecretsManager::Secret
+  #   Properties:
+  #     Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
+  #     Description: WordPress API credentials for Invictus blog
+  #     # Note: If secret already exists, import it into the stack using import-secret.sh
+  #     # SecretString is only used when creating new secrets
+  #     SecretString: !Sub |
+  #       {
+  #         "username": "${env:INVICTUS_USER, ''}",
+  #         "password": "${env:INVICTUS_PASS, ''}"
+  #       }
+  #     Tags:
+  #       - Key: Environment
+  #         Value: ${opt:stage, self:provider.stage}
+  #       - Key: Service
+  #         Value: ${self:service}
+  EventBridgeInvokeStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ${self:service}-${opt:stage, self:provider.stage}-EventBridgeRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeStateMachinePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
+  SemiStructuedPostStateMachineTrigger: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Name: SemiStructureInvictusPost_trigger
+      State: DISABLED
+      Description: trigger the SemiStructureInvictusPost state machine
+      ScheduleExpression: rate(10 minutes)
+      Targets: 
+        - Arn: 
+            Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
+          Id: SemiStructure_InvictusPost_StateMachine
+          RoleArn:
+            Fn::GetAtt: [EventBridgeInvokeStateMachineRole, Arn]
+  SemiStructuedPostStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ${self:service}-${opt:stage, self:provider.stage}-StateMachineRole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: statePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Lambda Invoke - Only for functions in this service
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-dump_post_to_bucket"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-get_invictus_post"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-strip_post_html"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-group_post_by_day"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-segment_days"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-sessions_to_date_records"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-clean_session_records"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-save_sessions_to_bucket"
+              # S3 Permissions for state machine tasks
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
+              # DynamoDB Permissions for state machine
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+              # SNS Publish - Scoped with condition for SMS protocol
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    sns:Protocol: "sms"
+
