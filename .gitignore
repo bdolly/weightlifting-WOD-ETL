@@ -21,3 +21,7 @@ var/
 
 .env
 node_modules/
+
+# uv
+.venv/
+uv.lock
