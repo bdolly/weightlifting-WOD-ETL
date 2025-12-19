@@ -2,13 +2,13 @@
 Tests for infrastructure resources (Idempotency Table, Secrets Manager).
 """
 import pytest
-from moto import mock_dynamodb, mock_secretsmanager
+from moto import mock_aws
 import boto3
 import json
 
 
 @pytest.mark.infrastructure
-@mock_dynamodb
+@mock_aws()
 def test_idempotency_table_creation():
     """Test that idempotency table can be created with correct schema."""
     dynamodb = boto3.client('dynamodb', region_name='us-east-1')
@@ -35,7 +35,7 @@ def test_idempotency_table_creation():
 
 
 @pytest.mark.infrastructure
-@mock_secretsmanager
+@mock_aws()
 def test_secrets_manager_secret_creation():
     """Test that Secrets Manager secret can be created with correct structure."""
     secrets_manager = boto3.client('secretsmanager', region_name='us-east-1')
@@ -65,12 +65,13 @@ def test_secrets_manager_secret_creation():
 
 
 @pytest.mark.infrastructure
-@mock_dynamodb
+@mock_aws()
 def test_idempotency_table_ttl():
     """Test that idempotency table has TTL enabled."""
     dynamodb = boto3.client('dynamodb', region_name='us-east-1')
     
     table_name = 'invictus-weightlifting-idempotency-dev'
+    # Create table first
     dynamodb.create_table(
         TableName=table_name,
         AttributeDefinitions=[
@@ -79,7 +80,12 @@ def test_idempotency_table_ttl():
         KeySchema=[
             {'AttributeName': 'idempotency_key', 'KeyType': 'HASH'}
         ],
-        BillingMode='PAY_PER_REQUEST',
+        BillingMode='PAY_PER_REQUEST'
+    )
+    
+    # Enable TTL after table creation
+    dynamodb.update_time_to_live(
+        TableName=table_name,
         TimeToLiveSpecification={
             'Enabled': True,
             'AttributeName': 'ttl'
@@ -88,6 +94,6 @@ def test_idempotency_table_ttl():
     
     # Verify TTL is enabled
     response = dynamodb.describe_time_to_live(TableName=table_name)
-    assert response['TimeToLiveSpecification']['Enabled'] is True
-    assert response['TimeToLiveSpecification']['AttributeName'] == 'ttl'
+    assert response['TimeToLiveDescription']['TimeToLiveStatus'] == 'ENABLED'
+    assert response['TimeToLiveDescription']['AttributeName'] == 'ttl'
 
