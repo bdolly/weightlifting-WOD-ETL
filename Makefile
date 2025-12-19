@@ -10,6 +10,7 @@ NODE := node
 NPM := npm
 SERVERLESS := npx serverless
 STAGE := dev
+export NODE_OPTIONS := --no-deprecation
 
 # Default target
 help:
@@ -60,9 +61,7 @@ install-python: venv
 		exit 1; \
 	fi
 	@echo "Installing Python dependencies..."
-	@if command -v uv >/dev/null 2>&1 && [ -f "$(VENV)/bin/uv" ]; then \
-		$(VENV)/bin/uv pip install -r requirements.txt; \
-	elif command -v uv >/dev/null 2>&1; then \
+	@if command -v uv >/dev/null 2>&1; then \
 		uv pip install -r requirements.txt --python $(PYTHON); \
 	else \
 		$(PIP) install -r requirements.txt; \
@@ -77,13 +76,37 @@ install-node:
 venv:
 	@if [ ! -d "$(VENV)" ]; then \
 		echo "Creating virtual environment..."; \
-		if command -v python$(PYTHON_MAJOR_MINOR) >/dev/null 2>&1; then \
-			python$(PYTHON_MAJOR_MINOR) -m venv $(VENV); \
-		elif command -v python3 >/dev/null 2>&1; then \
-			python3 -m venv $(VENV); \
+		if command -v uv >/dev/null 2>&1; then \
+			if command -v pyenv >/dev/null 2>&1; then \
+				PYTHON_CMD=$$(pyenv which python 2>/dev/null || echo ""); \
+				if [ -n "$$PYTHON_CMD" ] && [ -f "$$PYTHON_CMD" ]; then \
+					uv venv $(VENV) --python "$$PYTHON_CMD"; \
+				else \
+					uv venv $(VENV) --python $(PYTHON_MAJOR_MINOR); \
+				fi; \
+			else \
+				uv venv $(VENV) --python $(PYTHON_MAJOR_MINOR); \
+			fi; \
 		else \
-			echo "Error: Python $(PYTHON_MAJOR_MINOR) or python3 not found"; \
-			exit 1; \
+			PYTHON_CMD=""; \
+			if command -v pyenv >/dev/null 2>&1; then \
+				PYTHON_CMD=$$(pyenv which python 2>/dev/null || echo ""); \
+				if [ -n "$$PYTHON_CMD" ] && [ -f "$$PYTHON_CMD" ]; then \
+					$$PYTHON_CMD -m venv $(VENV); \
+				elif command -v python3 >/dev/null 2>&1; then \
+					python3 -m venv $(VENV); \
+				else \
+					echo "Error: Python not found via pyenv or python3"; \
+					exit 1; \
+				fi; \
+			elif command -v python$(PYTHON_MAJOR_MINOR) >/dev/null 2>&1; then \
+				python$(PYTHON_MAJOR_MINOR) -m venv $(VENV); \
+			elif command -v python3 >/dev/null 2>&1; then \
+				python3 -m venv $(VENV); \
+			else \
+				echo "Error: Python $(PYTHON_MAJOR_MINOR) or python3 not found"; \
+				exit 1; \
+			fi; \
 		fi; \
 		if [ ! -d "$(VENV)" ]; then \
 			echo "Error: Failed to create virtual environment"; \
