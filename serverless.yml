@@ -161,6 +161,21 @@ resources:
             Value: ${opt:stage, self:provider.stage}
           - Key: Service
             Value: ${self:service}
+    WordPressCredentialsSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
+        Description: WordPress API credentials for Invictus blog
+        SecretString: !Sub |
+          {
+            "username": "${env:INVICTUS_USER, ''}",
+            "password": "${env:INVICTUS_PASS, ''}"
+          }
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
     SemiStructuedPostStateMachineTrigger: 
       Type: AWS::Events::Rule
       Properties: 
