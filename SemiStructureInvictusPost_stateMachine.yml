@@ -66,8 +66,27 @@ SemiStructureInvictusPost:
                       WriteSessionsToDynamoDB_Map:
                         Type: Map
                         Iterator:
-                          StartAt: StoreSessionToDB
+                          StartAt: EnsureAllFields
                           States:
+                            EnsureAllFields:
+                              Type: Pass
+                              Result:
+                                warm_up: ""
+                                segment_a: ""
+                                segment_b: ""
+                                segment_c: ""
+                                segment_d: ""
+                                segment_e: ""
+                              ResultPath: "$.defaults"
+                              Next: MergeDefaults
+                            
+                            MergeDefaults:
+                              Type: Pass
+                              Parameters:
+                                merged.$: "States.JsonMerge($, $.defaults, false)"
+                              OutputPath: "$.merged"
+                              Next: StoreSessionToDB
+                            
                             StoreSessionToDB: 
                               Type: Task 
                               Resource: "arn:aws:states:::dynamodb:putItem"
@@ -79,17 +98,17 @@ SemiStructureInvictusPost:
                                   date: 
                                     "S.$" : "$.date"                      
                                   warm_up:
-                                    "S.$" : "$.warm_up"
+                                    "S.$": "$.warm_up"
                                   segment_a:
-                                    "S.$" : "$.segment_a"
+                                    "S.$": "$.segment_a"
                                   segment_b:
-                                    "S.$" : "$.segment_b"
+                                    "S.$": "$.segment_b"
                                   segment_c:
-                                    "S.$" : "$.segment_c"
+                                    "S.$": "$.segment_c"
                                   segment_d:
-                                    "S.$" : "$.segment_d"
+                                    "S.$": "$.segment_d"
                                   segment_e:
-                                    "S.$" : "$.segment_e" 
+                                    "S.$": "$.segment_e" 
                               End: true
                         End: true
                         

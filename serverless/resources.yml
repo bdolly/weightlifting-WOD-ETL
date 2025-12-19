@@ -134,12 +134,9 @@ Resources:
                   - dynamodb:PutItem
                 Resource:
                   - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
-              # SNS Publish - Scoped with condition for SMS protocol
+              # SNS Publish - Allow publishing to phone numbers for SMS notifications
               - Effect: Allow
                 Action:
                   - sns:Publish
                 Resource: "*"
-                Condition:
-                  StringEquals:
-                    sns:Protocol: "sms"
 
