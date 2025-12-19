@@ -1,25 +1,29 @@
 import re
-import pandas as pd
-import numpy as np
-import json
 from more_itertools import pairwise
 import datetime
+from dateutil.parser import parse
 
 
 def partition_by(regex, source):
-    """mask our series by a regex"""
-    source = pd.Series(source, dtype=str)
-    return source[source.str.contains(regex)]
+    """Filter source list by regex pattern, returning matching items with their indices"""
+    matches = []
+    for idx, item in enumerate(source):
+        if regex.search(str(item)):
+            matches.append((idx, item))
+    return matches
 
 
 def get_pairwise_series_indexes(masked_arr):
-    """turn anlist of nums into a nested list of num pairs
-    [0,1,2,3] =>[[0,1],[1,2],[2,3]]
+    """Turn a list of indices into a nested list of index pairs
+    [(0, 'item'), (1, 'item'), (2, 'item')] => [[0, 1], [1, 2], [2, 3]]
     """
+    if not masked_arr:
+        return []
+    
+    indices = [idx for idx, _ in masked_arr]
     out = []
-    for current, nxt in pairwise(masked_arr):
+    for current, nxt in pairwise(indices):
         out.append([current, nxt])
-
     return out
 
 
@@ -33,23 +37,25 @@ def get_groups(index_list, source):
 
 
 def group_source_by(regex, source):
-    """sub-divide a list by a given regex"""
-    weekdays = partition_by(regex, source)
-
-    weekday_indexes = get_pairwise_series_indexes(weekdays.index)
-
+    """Sub-divide a list by a given regex pattern"""
+    matches = partition_by(regex, source)
+    
+    if not matches:
+        return []
+    
+    weekday_indexes = get_pairwise_series_indexes(matches)
+    
     if len(weekday_indexes):
-        # add in a pair to capture to the end of the source arr
-        weekday_indexes.append([weekday_indexes[-1:][0][1], len(source.index)])
-
-    # TODO: could possibly replace get_groups with fancy indexing ex source[weekday_indexes]
+        # add in a pair to capture to the end of the source array
+        weekday_indexes.append([weekday_indexes[-1][1], len(source)])
+    
     return get_groups(weekday_indexes, source)
 
 
 def group_post_content_by_day(post, ctx):
     """
-      split the post text on line break (only meaningful dileanation)
-      group by day(session)
+    Split the post text on line break (only meaningful delineation)
+    Group by day(session)
     """
     days = ['Monday', 'Tuesday', 'Wednesday',
             'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -58,14 +64,12 @@ def group_post_content_by_day(post, ctx):
     session_regex = re.compile(
         '|'.join([f"({x})" for x in days]), re.IGNORECASE)
 
-    post_text = pd.Series(post.split('\n'))
+    post_text = post.split('\n')
 
-    sessions_lists = list(
-        map(lambda session:
-            session.reset_index(drop=True).tolist(),
-            group_source_by(session_regex, post_text)
-            )
-    )
+    sessions_lists = [
+        session  # session is already a list from get_groups
+        for session in group_source_by(session_regex, post_text)
+    ]
 
     return {"sessions": sessions_lists}
 
@@ -74,12 +78,14 @@ def segment_days(event, ctx):
     segment_regex = re.compile(
         '(Session)|(Suggested Warm-Up)|^[A-F].$', re.IGNORECASE)
     segmented_sessions = [
-        [x.tolist() for x in group_source_by(segment_regex, pd.Series(session))] for session
-        in event["sessions"]
+        group_source_by(segment_regex, session)  # Already returns lists
+        for session in event["sessions"]
     ]
-    # add in a array for session key
-    segmented_sessions = list(map(lambda x: [
-                              ['session', x[0][0]], *x[1:]] if len(x) else ['session', 'rest day'], segmented_sessions))
+    # add in an array for session key
+    segmented_sessions = [
+        [['session', x[0][0]], *x[1:]] if len(x) else [['session', 'rest day']]
+        for x in segmented_sessions
+    ]
     return {
         "segmented_sessions": segmented_sessions
     }
@@ -115,26 +121,40 @@ def sessions_to_json_records_by_day(event, ctx):
 
 
 def clean_sessions_df_records(event, ctx):
-
-    sessions_df = pd.DataFrame(event)
-
-    sessions_df = sessions_df.rename(
-        columns={'Suggested Warm-Up': 'warm_up', 'A.': 'segment_a', 'B.': 'segment_b', 'C.': 'segment_c', 'D.': 'segment_d', 'E.': 'segment_e'}).drop(columns=['s', 'r'])
-
-    sessions_df['date'] = pd.to_datetime(
-        sessions_df['date'], infer_datetime_format=True)
-
-    # store date as datetime ISO8601
-    # ref: https://stackoverflow.com/questions/18618288/how-do-i-convert-dates-into-iso-8601-datetime-format-in-a-pandas-dataframe
-    sessions_df['date'] = sessions_df['date'].dt.strftime(
-        '%Y-%m-%d')
-
-    sessions_df['session'].fillna('Rest Day', inplace=True)
-
-    # need to fill all columns with empty string
-    # for
-    sessions_df.fillna('', inplace=True)
-
-    sessions_df_records = sessions_df.to_json(orient="records")
-
-    return json.loads(sessions_df_records)
+    """Clean and normalize session records using standard library"""
+    column_mapping = {
+        'Suggested Warm-Up': 'warm_up',
+        'A.': 'segment_a',
+        'B.': 'segment_b',
+        'C.': 'segment_c',
+        'D.': 'segment_d',
+        'E.': 'segment_e'
+    }
+    
+    cleaned_records = []
+    for record in event:
+        # Rename columns
+        cleaned_record = {}
+        for old_key, value in record.items():
+            new_key = column_mapping.get(old_key, old_key)
+            # Drop 's' and 'r' columns
+            if new_key not in ['s', 'r']:
+                cleaned_record[new_key] = value
+        
+        # Parse and format date
+        if 'date' in cleaned_record:
+            date_obj = parse(cleaned_record['date'])
+            cleaned_record['date'] = date_obj.strftime('%Y-%m-%d')
+        
+        # Fill None values
+        if cleaned_record.get('session') is None:
+            cleaned_record['session'] = 'Rest Day'
+        
+        # Fill all None values with empty string
+        for key in cleaned_record:
+            if cleaned_record[key] is None:
+                cleaned_record[key] = ''
+        
+        cleaned_records.append(cleaned_record)
+    
+    return cleaned_records
