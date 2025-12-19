@@ -38,6 +38,7 @@ help:
 	@echo ""
 	@echo "Local Development:"
 	@echo "  make invoke            - Invoke function locally (use FUNC=name EVENT=path)"
+	@echo "  make invoke-direct     - Invoke function directly with Python (bypasses Serverless)"
 	@echo "  make logs              - View function logs (use FUNC=name)"
 	@echo "  make logs-tail         - Tail function logs (use FUNC=name)"
 	@echo ""
@@ -232,8 +233,21 @@ invoke:
 		echo "Error: EVENT variable required. Usage: make invoke FUNC=function_name EVENT=test_events/file.json"; \
 		exit 1; \
 	fi
+	@if [ ! -d "$(VENV)" ] || [ ! -f "$(PYTHON)" ]; then \
+		echo "Error: Virtual environment not found. Run 'make setup' first."; \
+		exit 1; \
+	fi
+	@if [ ! -f ".env" ]; then \
+		echo "Warning: .env file not found. Some functions may require environment variables."; \
+		echo "Create a .env file with INVICTUS_USER and INVICTUS_PASS if needed."; \
+	fi
 	@echo "Invoking $(FUNC) with $(EVENT)..."
-	@$(SERVERLESS) invoke local -f $(FUNC) --path $(EVENT)
+	@echo "Using Python from: $(PYTHON)"
+	@echo "Using virtual environment: $(VENV)"
+	@PATH="$(VENV)/bin:$$PATH" \
+	VIRTUAL_ENV="$(VENV)" \
+	PYTHONPATH="$(VENV)/lib/python$(PYTHON_MAJOR_MINOR)/site-packages:$$PYTHONPATH" \
+	$(SERVERLESS) invoke local -f $(FUNC) --path $(EVENT) --stage $(STAGE)
 
 # Logs
 logs:
