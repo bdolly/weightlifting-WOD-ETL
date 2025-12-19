@@ -1,43 +1,27 @@
 dump_post_to_bucket:
   handler: handler.dump_post_to_bucket
-  package:
-    artifact:
 
 get_invictus_post:
   handler: handler.GET_invictus_post
-  package:
-    artifact:
   events:
     - s3:
         bucket: ${self:provider.environment.INVICTUS_BUCKET}
 
 strip_post_html: 
   handler: handler.strip_post_html
-  package:
-    artifact:
 
 group_post_by_day: 
   handler: transforms.group_post_content_by_day
-  package:
-    artifact:
 
 segment_days: 
   handler: transforms.segment_days
-  package:
-    artifact:
     
 sessions_to_date_records: 
   handler: transforms.sessions_to_json_records_by_day
-  package:
-    artifact:
 
 clean_session_records: 
   handler: handler.clean_sessions_df_records
-  package:
-    artifact:
 
 save_sessions_to_bucket: 
   handler: handler.save_sessions_to_bucket
-  package:
-    artifact:
 

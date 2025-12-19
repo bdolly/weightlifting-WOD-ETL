@@ -22,6 +22,51 @@ The pipeline is built using:
 - **AWS Secrets Manager** - Securely stores WordPress API credentials
 - **Serverless Framework** - Infrastructure as code
 
+### Architecture Diagram
+
+```mermaid
+graph TB
+    WP[WordPress API]
+    EB[EventBridge Rule]
+    SF[Step Functions]
+    
+    L1[get_invictus_post]
+    L2[dump_post_to_bucket]
+    L3[strip_post_html]
+    L4[group_post_by_day]
+    L5[segment_days]
+    L6[sessions_to_date_records]
+    L7[clean_session_records]
+    L8[save_sessions_to_bucket]
+    
+    S3[S3 Bucket]
+    DDB[(DynamoDB)]
+    SNS[SNS]
+    Phone[Phone]
+
+    EB -->|Triggers| SF
+    SF -->|Get Posts| L1
+    L1 -->|API Call| WP
+    WP -->|Returns| L1
+    L1 -->|Posts| SF
+    
+    SF -->|For Each Post| L2
+    L2 -->|Save Raw| S3
+    L2 -->|Post Data| L3
+    L3 -->|Plain Text| L4
+    L4 -->|Grouped| L5
+    L5 -->|Segmented| L6
+    L6 -->|Date Records| L7
+    L7 -->|Cleaned| SF
+    
+    SF -->|Parallel| DDB
+    SF -->|Parallel| L8
+    L8 -->|Save Weekly| S3
+    
+    SF -->|Complete| SNS
+    SNS -->|SMS| Phone
+```
+
 ### Workflow
 
 ```

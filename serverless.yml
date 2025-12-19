@@ -8,10 +8,9 @@ org: bromeodolly
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
-# Pinned to V2.x to avoid V4 breaking changes
+# Pinned to V3.x for stability
 # IMPORTANT: Always use 'npx serverless' instead of global 'serverless' command
-# The global command uses V4 which is incompatible with this project
-frameworkVersion: '>=2.0.0 <3.0.0'
+frameworkVersion: '>=3.0.0 <4.0.0'
 
 useDotenv: true
 
@@ -21,18 +20,19 @@ provider:
   runtime: python3.9
   profile: ${env:AWS_PROFILE, 'serverless-invictus-agent'}
   stage: dev
-  lambdaHashingVersion: 20201221
-  iamRoleStatements: ${file(./serverless/iam.yml)}
+  iam:
+    role:
+      statements: ${file(./serverless/iam.yml)}
   environment: ${file(./serverless/environment.yml)}
 
 # you can add packaging information here
 package:
-  exclude:
-    - node_modules/**
-    - venv/**
-    - __pycache__/**
-    - test_events
-    - .serverless/**
+  patterns:
+    - '!node_modules/**'
+    - '!venv/**'
+    - '!__pycache__/**'
+    - '!test_events/**'
+    - '!.serverless/**'
 
 plugins:
   - serverless-python-requirements

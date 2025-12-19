@@ -113,14 +113,14 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource:
-                  - Fn::GetAtt: [dump_post_to_bucket, Arn]
-                  - Fn::GetAtt: [get_invictus_post, Arn]
-                  - Fn::GetAtt: [strip_post_html, Arn]
-                  - Fn::GetAtt: [group_post_by_day, Arn]
-                  - Fn::GetAtt: [segment_days, Arn]
-                  - Fn::GetAtt: [sessions_to_date_records, Arn]
-                  - Fn::GetAtt: [clean_session_records, Arn]
-                  - Fn::GetAtt: [save_sessions_to_bucket, Arn]
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-dump_post_to_bucket"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-get_invictus_post"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-strip_post_html"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-group_post_by_day"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-segment_days"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-sessions_to_date_records"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-clean_session_records"
+                  - "arn:aws:lambda:${opt:region, self:provider.region}:*:function:${self:service}-${opt:stage, self:provider.stage}-save_sessions_to_bucket"
               # S3 Permissions for state machine tasks
               - Effect: Allow
                 Action:
