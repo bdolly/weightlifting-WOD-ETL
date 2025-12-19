@@ -1,3 +1,6 @@
+# Main Serverless Framework configuration file
+# This file references modular configuration files for better maintainability
+
 service: invictus-weightlifting-wod-etl
 
 app: invictus-weightlifting-app
@@ -19,58 +22,8 @@ provider:
   profile: ${env:AWS_PROFILE, 'serverless-invictus-agent'}
   stage: dev
   lambdaHashingVersion: 20201221
-  iamRoleStatements:
-    # S3 Permissions - Scoped to specific bucket and paths
-    - Effect: Allow
-      Action:
-        - s3:GetObject
-        - s3:PutObject
-        - s3:DeleteObject
-        - s3:ListBucket
-      Resource:
-        - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}"
-        - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
-    # DynamoDB Permissions - Scoped to specific tables
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource:
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.IDEMPOTENCY_TABLE}"
-    # CloudWatch Logs - Scoped to this service's log groups
-    - Effect: Allow
-      Action:
-        - logs:CreateLogGroup
-        - logs:CreateLogStream
-        - logs:PutLogEvents
-        - logs:DescribeLogStreams
-      Resource:
-        - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*"
-        - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*:*"
-    # X-Ray Permissions - Write-only for this service
-    - Effect: Allow
-      Action:
-        - xray:PutTraceSegments
-        - xray:PutTelemetryRecords
-      Resource: "*"
-
-# you can define service wide environment variables here
-  environment:
-    INVICTUS_BUCKET: ${env:INVICTUS_BUCKET}-${opt:stage, self:provider.stage}
-    INVICTUS_RSS : https://crossfitinvictus.com/category/invictus-athlete-weightlifting/feed/
-    INVICTUS_WEIGHTLIFTING_API_CAT_ID : "213"
-    INVICTUS_WEIGHTLIFTING_API : https://www.crossfitinvictus.com/wp-json/wp/v2/posts?categories=${self:provider.environment.INVICTUS_WEIGHTLIFTING_API_CAT_ID}
-    INVICTUS_USER : ${env:INVICTUS_USER}
-    INVICTUS_PASS : ${env:INVICTUS_PASS}
-    INVICTUS_SECRET_NAME: ${self:service}-wordpress-credentials-${opt:stage, self:provider.stage}
-    IDEMPOTENCY_TABLE: ${self:service}-idempotency-${opt:stage, self:provider.stage}
-    DYNAMODB_TABLE: ${self:service}-sessions-${opt:stage, self:provider.stage}
-
+  iamRoleStatements: ${file(./serverless/iam.yml)}
+  environment: ${file(./serverless/environment.yml)}
 
 # you can add packaging information here
 package:
@@ -79,6 +32,7 @@ package:
     - venv/**
     - __pycache__/**
     - test_events
+    - .serverless/**
 
 plugins:
   - serverless-python-requirements
@@ -89,200 +43,10 @@ custom:
     dockerizePip: non-linux
     dockerImage: public.ecr.aws/sam/build-python3.9
 
-functions:
-
-  dump_post_to_bucket:
-    handler: handler.dump_post_to_bucket
-    package:
-      artifact:
-
-  get_invictus_post:
-    handler: handler.GET_invictus_post
-    package:
-      artifact:
-    events:
-      - s3:
-          bucket: ${self:provider.environment.INVICTUS_BUCKET}
-
-  strip_post_html: 
-    handler: handler.strip_post_html
-    package:
-      artifact:
-
-  group_post_by_day: 
-    handler: transforms.group_post_content_by_day
-    package:
-      artifact:
-
-  segment_days: 
-    handler: transforms.segment_days
-    package:
-      artifact:
-      
-  sessions_to_date_records: 
-    handler: transforms.sessions_to_json_records_by_day
-    package:
-      artifact:
-
-  clean_session_records: 
-    handler: handler.clean_sessions_df_records
-    package:
-      artifact:
-
-  save_sessions_to_bucket: 
-    handler: handler.save_sessions_to_bucket
-    package:
-      artifact:
-  
+functions: ${file(./serverless/functions.yml)}
 
 stepFunctions:
   stateMachines:
     ${file(./SemiStructureInvictusPost_stateMachine.yml)}
 
-resources:
-  Resources: 
-    WorkoutPostsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
-        AttributeDefinitions: 
-          -
-            AttributeName: date
-            AttributeType: S
-          -
-            AttributeName: session
-            AttributeType: S
-        KeySchema: 
-          -
-            AttributeName: date
-            KeyType: HASH
-          -
-            AttributeName: session
-            KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: 1
-          WriteCapacityUnits: 1
-    IdempotencyTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: ${self:service}-idempotency-${opt:stage, self:provider.stage}
-        BillingMode: PAY_PER_REQUEST
-        AttributeDefinitions:
-          - AttributeName: idempotency_key
-            AttributeType: S
-        KeySchema:
-          - AttributeName: idempotency_key
-            KeyType: HASH
-        TimeToLiveSpecification:
-          Enabled: true
-          AttributeName: ttl
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-    # WordPressCredentialsSecret:
-    #   Type: AWS::SecretsManager::Secret
-    #   Properties:
-    #     Name: ${self:provider.environment.INVICTUS_SECRET_NAME}
-    #     Description: WordPress API credentials for Invictus blog
-    #     # Note: If secret already exists, import it into the stack using import-secret.sh
-    #     # SecretString is only used when creating new secrets
-    #     SecretString: !Sub |
-    #       {
-    #         "username": "${env:INVICTUS_USER, ''}",
-    #         "password": "${env:INVICTUS_PASS, ''}"
-    #       }
-    #     Tags:
-    #       - Key: Environment
-    #         Value: ${opt:stage, self:provider.stage}
-    #       - Key: Service
-    #         Value: ${self:service}
-    EventBridgeInvokeStateMachineRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: ${self:service}-${opt:stage, self:provider.stage}-EventBridgeRole
-        AssumeRolePolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - events.amazonaws.com
-              Action:
-                - sts:AssumeRole
-        Policies:
-          - PolicyName: InvokeStateMachinePolicy
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                - Effect: Allow
-                  Action:
-                    - states:StartExecution
-                  Resource:
-                    Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
-    SemiStructuedPostStateMachineTrigger: 
-      Type: AWS::Events::Rule
-      Properties: 
-        Name: SemiStructureInvictusPost_trigger
-        State: DISABLED
-        Description: trigger the SemiStructureInvictusPost state machine
-        ScheduleExpression: rate(10 minutes)
-        Targets: 
-          - Arn: 
-              Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
-            Id: SemiStructure_InvictusPost_StateMachine
-            RoleArn:
-              Fn::GetAtt: [EventBridgeInvokeStateMachineRole, Arn]
-    SemiStructuedPostStateMachineRole:
-      Type: AWS::IAM::Role
-      Properties:
-        RoleName: ${self:service}-${opt:stage, self:provider.stage}-StateMachineRole
-        AssumeRolePolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal:
-                Service:
-                  - states.amazonaws.com
-              Action:
-                - sts:AssumeRole
-        Policies:
-          - PolicyName: statePolicy
-            PolicyDocument:
-              Version: "2012-10-17"
-              Statement:
-                # Lambda Invoke - Only for functions in this service
-                - Effect: Allow
-                  Action:
-                    - lambda:InvokeFunction
-                  Resource:
-                    - Fn::GetAtt: [dump_post_to_bucket, Arn]
-                    - Fn::GetAtt: [get_invictus_post, Arn]
-                    - Fn::GetAtt: [strip_post_html, Arn]
-                    - Fn::GetAtt: [group_post_by_day, Arn]
-                    - Fn::GetAtt: [segment_days, Arn]
-                    - Fn::GetAtt: [sessions_to_date_records, Arn]
-                    - Fn::GetAtt: [clean_session_records, Arn]
-                    - Fn::GetAtt: [save_sessions_to_bucket, Arn]
-                # S3 Permissions for state machine tasks
-                - Effect: Allow
-                  Action:
-                    - s3:GetObject
-                    - s3:PutObject
-                  Resource:
-                    - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
-                # DynamoDB Permissions for state machine
-                - Effect: Allow
-                  Action:
-                    - dynamodb:PutItem
-                  Resource:
-                    - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
-                # SNS Publish - Scoped with condition for SMS protocol
-                - Effect: Allow
-                  Action:
-                    - sns:Publish
-                  Resource: "*"
-                  Condition:
-                    StringEquals:
-                      sns:Protocol: "sms"
-                
-                
+resources: ${file(./serverless/resources.yml)}
