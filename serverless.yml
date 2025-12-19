@@ -55,11 +55,51 @@ custom:
     slim: true
     strip: true
     zip: true
-    layer: false
+    layer: true
     # Exclude unnecessary files from packages
     invalidateCaches: false
     pipCmdExtraArgs:
       - --no-cache-dir
+    # More aggressive exclusions for pandas/numpy
+    slimPatterns:
+      - '**/*.pyc'
+      - '**/__pycache__/**'
+      - '**/tests/**'
+      - '**/test/**'
+      - '**/*.so.dSYM/**'
+      - '**/dist-info/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/site-packages/numpy/tests/**'
+      - '**/site-packages/pandas/doc/**'
+      - '**/site-packages/numpy/doc/**'
+      - '**/site-packages/pandas/benchmarks/**'
+      - '**/site-packages/numpy/benchmarks/**'
+      - '**/site-packages/pandas/.github/**'
+      - '**/site-packages/numpy/.github/**'
+      - '**/site-packages/pandas/_libs/tslibs/tests/**'
+      - '**/site-packages/pandas/_libs/window/**'
+      - '**/site-packages/numpy/f2py/tests/**'
+      - '**/site-packages/numpy/linalg/tests/**'
+      - '**/site-packages/numpy/ma/tests/**'
+      - '**/site-packages/numpy/matrixlib/tests/**'
+      - '**/site-packages/numpy/polynomial/tests/**'
+      - '**/site-packages/numpy/random/tests/**'
+      - '**/site-packages/numpy/testing/**'
+      - '**/site-packages/numpy/tests/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/site-packages/pandas/util/tests/**'
+      - '**/site-packages/pandas/_testing/**'
+      - '**/site-packages/pandas/io/tests/**'
+      - '**/site-packages/pandas/plotting/tests/**'
+      - '**/site-packages/pandas/tests/**'
+      - '**/*.pyx'
+      - '**/*.pxd'
+      - '**/*.pxi'
+      - '**/*.h'
+      - '**/*.c'
+      - '**/*.cpp'
+      - '**/*.f'
+      - '**/*.f90'
 
 functions: ${file(./serverless/functions.yml)}
 

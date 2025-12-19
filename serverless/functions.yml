@@ -1,14 +1,32 @@
 dump_post_to_bucket:
   handler: handler.dump_post_to_bucket
+  package:
+    patterns:
+      - '!pandas/**'
+      - '!numpy/**'
+      - '!**/pandas/**'
+      - '!**/numpy/**'
 
 get_invictus_post:
   handler: handler.GET_invictus_post
   events:
     - s3:
         bucket: ${self:provider.environment.INVICTUS_BUCKET}
+  package:
+    patterns:
+      - '!pandas/**'
+      - '!numpy/**'
+      - '!**/pandas/**'
+      - '!**/numpy/**'
 
 strip_post_html: 
   handler: handler.strip_post_html
+  package:
+    patterns:
+      - '!pandas/**'
+      - '!numpy/**'
+      - '!**/pandas/**'
+      - '!**/numpy/**'
 
 group_post_by_day: 
   handler: transforms.group_post_content_by_day
