@@ -8,7 +8,7 @@ org: bromeodolly
 # Pinned to V2.x to avoid V4 breaking changes
 # IMPORTANT: Always use 'npx serverless' instead of global 'serverless' command
 # The global command uses V4 which is incompatible with this project
-frameworkVersion: '>=2.0.0'
+frameworkVersion: '>=2.0.0 <3.0.0'
 
 useDotenv: true
 
@@ -16,19 +16,21 @@ provider:
   name: aws
   region: ${env:AWS_REGION}
   runtime: python3.9
-  profile: ${env:AWS_PROFILE}
+  profile: ${env:AWS_PROFILE, 'serverless-invictus-agent'}
   stage: dev
+  lambdaHashingVersion: 20201221
   iamRoleStatements:
+    # S3 Permissions - Scoped to specific bucket and paths
     - Effect: Allow
       Action:
-        - lambda:InvokeFunction
-        - s3:*
-        - states:*
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - sns:publish
-      Resource: "*"
+        - s3:GetObject
+        - s3:PutObject
+        - s3:DeleteObject
+        - s3:ListBucket
+      Resource:
+        - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}"
+        - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
+    # DynamoDB Permissions - Scoped to specific tables
     - Effect: Allow
       Action:
         - dynamodb:Query
@@ -37,11 +39,24 @@ provider:
         - dynamodb:PutItem
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+      Resource:
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.IDEMPOTENCY_TABLE}"
+    # CloudWatch Logs - Scoped to this service's log groups
     - Effect: Allow
-      Action: 
-       - logs:*
-       - xray:*
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:DescribeLogStreams
+      Resource:
+        - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*"
+        - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-*:*"
+    # X-Ray Permissions - Write-only for this service
+    - Effect: Allow
+      Action:
+        - xray:PutTraceSegments
+        - xray:PutTelemetryRecords
       Resource: "*"
 
 # you can define service wide environment variables here
@@ -183,6 +198,28 @@ resources:
     #         Value: ${opt:stage, self:provider.stage}
     #       - Key: Service
     #         Value: ${self:service}
+    EventBridgeInvokeStateMachineRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:service}-${opt:stage, self:provider.stage}-EventBridgeRole
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - events.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Policies:
+          - PolicyName: InvokeStateMachinePolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - states:StartExecution
+                  Resource:
+                    Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
     SemiStructuedPostStateMachineTrigger: 
       Type: AWS::Events::Rule
       Properties: 
@@ -194,12 +231,12 @@ resources:
           - Arn: 
               Fn::GetAtt: [SemiStructureInvictusPostStateMachine, Arn]
             Id: SemiStructure_InvictusPost_StateMachine
-            RoleArn: arn:aws:iam::670325714839:role/service-role/AWS_Events_Invoke_Step_Functions_1766034610
+            RoleArn:
+              Fn::GetAtt: [EventBridgeInvokeStateMachineRole, Arn]
     SemiStructuedPostStateMachineRole:
       Type: AWS::IAM::Role
       Properties:
         RoleName: ${self:service}-${opt:stage, self:provider.stage}-StateMachineRole
-        # Path: /path_of_state_machine_roles/
         AssumeRolePolicyDocument:
           Statement:
             - Effect: Allow
@@ -212,7 +249,40 @@ resources:
           - PolicyName: statePolicy
             PolicyDocument:
               Version: "2012-10-17"
-              Statement: 
-                ${self:provider.iamRoleStatements}
+              Statement:
+                # Lambda Invoke - Only for functions in this service
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                  Resource:
+                    - Fn::GetAtt: [dump_post_to_bucket, Arn]
+                    - Fn::GetAtt: [get_invictus_post, Arn]
+                    - Fn::GetAtt: [strip_post_html, Arn]
+                    - Fn::GetAtt: [group_post_by_day, Arn]
+                    - Fn::GetAtt: [segment_days, Arn]
+                    - Fn::GetAtt: [sessions_to_date_records, Arn]
+                    - Fn::GetAtt: [clean_session_records, Arn]
+                    - Fn::GetAtt: [save_sessions_to_bucket, Arn]
+                # S3 Permissions for state machine tasks
+                - Effect: Allow
+                  Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                  Resource:
+                    - "arn:aws:s3:::${self:provider.environment.INVICTUS_BUCKET}/*"
+                # DynamoDB Permissions for state machine
+                - Effect: Allow
+                  Action:
+                    - dynamodb:PutItem
+                  Resource:
+                    - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+                # SNS Publish - Scoped with condition for SMS protocol
+                - Effect: Allow
+                  Action:
+                    - sns:Publish
+                  Resource: "*"
+                  Condition:
+                    StringEquals:
+                      sns:Protocol: "sms"
                 
                 
