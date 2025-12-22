@@ -14,6 +14,7 @@ SemiStructureInvictusPost:
             Next: StructurePosts_Map
           StructurePosts_Map: 
             Type: Map
+            ItemsPath: "$.result"
             Next: NotifyWhenComplete
             Iterator: 
               StartAt: DumpPostToStagingBucket
