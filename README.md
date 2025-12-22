@@ -78,9 +78,43 @@ GetDaySegments → SessionsToDateRecordsJSON → CleanSessionRecords →
 PersistRecords (DynamoDB + S3)
 ```
 
+## Code Architecture & Best Practices
+
+### Service Layer
+
+The codebase follows a service layer architecture pattern:
+
+- **Services** (`services/`): Abstraction layer for AWS services and external APIs
+  - `s3_service.py`: S3 operations (put, get, check existence)
+  - `dynamodb_service.py`: DynamoDB operations
+  - `idempotency_service.py`: Idempotency tracking logic
+  - `invictus_api_service.py`: External WordPress API calls
+
+- **Handlers** (`handler.py`): Thin Lambda handler functions that orchestrate services
+- **Transforms** (`transforms.py`): Pure transformation functions for data processing
+- **Utils** (`utils/`): Shared utilities (decorators, exceptions, validators)
+- **Config** (`config.py`): Type-safe environment variable validation
+
+### Key Improvements
+
+- **Type Safety**: Comprehensive type hints throughout the codebase
+- **Error Handling**: Custom exception classes and standardized error responses
+- **Idempotency**: Built-in idempotency checks for all write operations
+- **Logging**: Structured logging with correlation IDs for request tracking
+- **Testing**: Unit tests for service layer with mock fixtures
+- **Configuration**: Environment variable validation with clear error messages
+
+### Lambda Best Practices
+
+- **Client Initialization**: Boto3 clients initialized per invocation (not at module level)
+- **Function Configuration**: Timeout, memory, DLQ, and X-Ray tracing configured
+- **Python Runtime**: Upgraded to Python 3.11 for better performance
+- **Handler Decorators**: Standardized error handling and response formatting
+- **Service Abstraction**: AWS service calls abstracted into service layer
+
 ## Prerequisites
 
-- Python 3.9
+- Python 3.11
 - Node.js (for Serverless Framework)
 - AWS CLI configured with appropriate credentials
 - Serverless Framework CLI
