@@ -3,7 +3,8 @@ import json
 import requests
 import boto3
 import hashlib
-from datetime import datetime, timedelta
+import datetime as dt
+from datetime import timedelta, timezone
 from bs4 import BeautifulSoup
 from transforms import *
 from dateutil.parser import parse
@@ -82,14 +83,17 @@ def mark_idempotency_complete(idempotency_key, ttl_hours=24):
             return
         
         # Calculate TTL timestamp (Unix epoch time)
-        ttl_timestamp = int((datetime.utcnow() + timedelta(hours=ttl_hours)).timestamp())
+        # Use timezone-aware datetime for compatibility
+        # Use dt.datetime to avoid conflict with transforms module's datetime import
+        now = dt.datetime.now(timezone.utc)
+        ttl_timestamp = int((now + timedelta(hours=ttl_hours)).timestamp())
         
         dynamodb_client.put_item(
             TableName=table_name,
             Item={
                 'idempotency_key': {'S': idempotency_key},
                 'ttl': {'N': str(ttl_timestamp)},
-                'completed_at': {'S': datetime.utcnow().isoformat()}
+                'completed_at': {'S': now.isoformat()}
             }
         )
         print(f'Idempotency marked complete (key: {idempotency_key[:16]}..., TTL: {ttl_hours}h)')
