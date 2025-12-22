@@ -21,7 +21,7 @@ class InvictusAPIService:
         'Upgrade-Insecure-Requests': '1'
     }
     
-    def __init__(self, api_url: str, headers: Optional[Dict[str, str]] = None):
+    def __init__(self, api_url: str, headers: Optional[Dict[str, str]] = None) -> None:
         """
         Initialize Invictus API service.
         
@@ -29,8 +29,8 @@ class InvictusAPIService:
             api_url: Base WordPress API URL
             headers: Optional custom headers (defaults to DEFAULT_HEADERS)
         """
-        self.api_url = api_url
-        self.headers = headers or self.DEFAULT_HEADERS
+        self.api_url: str = api_url
+        self.headers: Dict[str, str] = headers or self.DEFAULT_HEADERS
     
     def get_posts(
         self,

@@ -2,9 +2,14 @@
 DynamoDB service for table operations.
 """
 import boto3
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from botocore.exceptions import ClientError
 from logger_config import get_logger
+
+if TYPE_CHECKING:
+    from mypy_boto3_dynamodb import DynamoDBClient
+else:
+    DynamoDBClient = Any
 
 logger = get_logger(__name__)
 
@@ -12,12 +17,12 @@ logger = get_logger(__name__)
 class DynamoDBService:
     """Service for DynamoDB operations."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize DynamoDB service."""
-        self._client = None
+        self._client: Optional[DynamoDBClient] = None
     
     @property
-    def client(self):
+    def client(self) -> DynamoDBClient:
         """Lazy initialization of DynamoDB client."""
         if self._client is None:
             self._client = boto3.client('dynamodb')

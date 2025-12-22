@@ -14,15 +14,15 @@ logger = get_logger(__name__)
 class IdempotencyService:
     """Service for idempotency operations."""
     
-    def __init__(self, table_name: Optional[str] = None):
+    def __init__(self, table_name: Optional[str] = None) -> None:
         """
         Initialize idempotency service.
         
         Args:
             table_name: Name of the idempotency DynamoDB table
         """
-        self.table_name = table_name
-        self.dynamodb_service = DynamoDBService()
+        self.table_name: Optional[str] = table_name
+        self.dynamodb_service: DynamoDBService = DynamoDBService()
     
     @staticmethod
     def generate_key(operation: str, identifier: str) -> str:

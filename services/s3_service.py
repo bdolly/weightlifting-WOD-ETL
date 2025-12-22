@@ -3,9 +3,15 @@ S3 service for object storage operations.
 """
 import json
 import boto3
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
 from botocore.exceptions import ClientError
 from logger_config import get_logger
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client, S3ServiceResource
+else:
+    S3Client = Any
+    S3ServiceResource = Any
 
 logger = get_logger(__name__)
 
@@ -13,26 +19,26 @@ logger = get_logger(__name__)
 class S3Service:
     """Service for S3 operations."""
     
-    def __init__(self, bucket_name: str):
+    def __init__(self, bucket_name: str) -> None:
         """
         Initialize S3 service.
         
         Args:
             bucket_name: Name of the S3 bucket
         """
-        self.bucket_name = bucket_name
-        self._s3_resource = None
-        self._s3_client = None
+        self.bucket_name: str = bucket_name
+        self._s3_resource: Optional[S3ServiceResource] = None
+        self._s3_client: Optional[S3Client] = None
     
     @property
-    def s3_resource(self):
+    def s3_resource(self) -> S3ServiceResource:
         """Lazy initialization of S3 resource."""
         if self._s3_resource is None:
             self._s3_resource = boto3.resource('s3')
         return self._s3_resource
     
     @property
-    def s3_client(self):
+    def s3_client(self) -> S3Client:
         """Lazy initialization of S3 client."""
         if self._s3_client is None:
             self._s3_client = boto3.client('s3')
@@ -62,7 +68,7 @@ class S3Service:
     def put_object(
         self,
         key: str,
-        body: bytes | str,
+        body: Union[bytes, str],
         metadata: Optional[Dict[str, str]] = None
     ) -> None:
         """
