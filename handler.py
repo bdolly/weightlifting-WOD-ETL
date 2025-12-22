@@ -12,7 +12,6 @@ from dateutil.parser import parse
 s3_resource = boto3.resource('s3')
 s3_client = boto3.client('s3')
 dynamodb_client = boto3.client('dynamodb')
-invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 
 
 def generate_idempotency_key(operation, identifier):
@@ -101,6 +100,10 @@ def mark_idempotency_complete(idempotency_key, ttl_hours=24):
 
 def GET_invictus_post(event, context):
     """GET Invicitus Weightlifting WP blog post"""
+    invictus_api = os.environ.get('INVICTUS_WEIGHTLIFTING_API', '')
+    if not invictus_api:
+        raise ValueError('INVICTUS_WEIGHTLIFTING_API environment variable not set')
+    
     posts_per_page = event.get('posts_per_page', False) or 1
     page_num = event.get('page', False) or 1
     url = invictus_api+"&per_page="+str(posts_per_page)+"&page="+str(page_num)
