@@ -64,7 +64,13 @@ def group_post_content_by_day(post, ctx):
     session_regex = re.compile(
         '|'.join([f"({x})" for x in days]), re.IGNORECASE)
 
-    post_text = post.split('\n')
+    # Extract text from dictionary if needed (from StripPostHTML step)
+    if isinstance(post, dict):
+        post_text_str = post.get('text', '')
+    else:
+        post_text_str = str(post)
+
+    post_text = post_text_str.split('\n')
 
     sessions_lists = [
         session  # session is already a list from get_groups
@@ -77,9 +83,16 @@ def group_post_content_by_day(post, ctx):
 def segment_days(event, ctx):
     segment_regex = re.compile(
         '(Session)|(Suggested Warm-Up)|^[A-F].$', re.IGNORECASE)
+    
+    # Handle decorator-wrapped input if needed
+    if isinstance(event, dict) and 'result' in event and isinstance(event['result'], dict):
+        event_data = event['result']
+    else:
+        event_data = event
+    
     segmented_sessions = [
         group_source_by(segment_regex, session)  # Already returns lists
-        for session in event["sessions"]
+        for session in event_data["sessions"]
     ]
     # add in an array for session key
     segmented_sessions = [
@@ -92,13 +105,19 @@ def segment_days(event, ctx):
 
 
 def sessions_to_json_records_by_day(event, ctx):
+    # Handle decorator-wrapped input if needed
+    if isinstance(event, dict) and 'result' in event and isinstance(event['result'], dict):
+        event_data = event['result']
+    else:
+        event_data = event
+    
     theday = datetime.date.today()
     weekday = theday.isoweekday()
     # The start of the week
     start = theday - datetime.timedelta(days=weekday)
     # build a simple range
     dates = [start + datetime.timedelta(days=d)
-             for d in range(len(event['segmented_sessions'])+1)]
+             for d in range(len(event_data['segmented_sessions'])+1)]
 
     # dates = {
     #     str(d): {
@@ -110,7 +129,7 @@ def sessions_to_json_records_by_day(event, ctx):
     sessions = [
         {
             session[0]:  ' '.join(session[1:])
-            for idx, session in enumerate(event['segmented_sessions'][idx])
+            for idx, session in enumerate(event_data['segmented_sessions'][idx])
         } for idx, d in enumerate(dates[1:])
     ]
 
@@ -131,8 +150,17 @@ def clean_sessions_df_records(event, ctx):
         'E.': 'segment_e'
     }
     
+    # Handle decorator-wrapped input (if list was wrapped as {"result": [...]})
+    if isinstance(event, dict) and 'result' in event and isinstance(event['result'], list):
+        records = event['result']
+    elif isinstance(event, list):
+        records = event
+    else:
+        # Fallback: try to extract records from dict structure
+        records = event.get('records', event.get('data', [event] if not isinstance(event, list) else event))
+    
     cleaned_records = []
-    for record in event:
+    for record in records:
         # Rename columns
         cleaned_record = {}
         for old_key, value in record.items():

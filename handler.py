@@ -95,9 +95,24 @@ def save_sessions_to_bucket(session_records, context):
     """Save session records to S3 bucket using standard library"""
     config = get_config()
     
+    # Handle decorator-wrapped input (if list was wrapped as {"result": [...]})
+    if (isinstance(session_records, dict) and
+            'result' in session_records and
+            isinstance(session_records['result'], list)):
+        records = session_records['result']
+    elif isinstance(session_records, list):
+        records = session_records
+    else:
+        # Fallback: try to extract records from dict structure
+        fallback = ([session_records]
+                    if not isinstance(session_records, list)
+                    else session_records)
+        records = session_records.get(
+            'records', session_records.get('data', fallback))
+    
     # Parse dates and find min/max
     dates = []
-    for record in session_records:
+    for record in records:
         if 'date' in record:
             date_obj = parse(record['date'])
             dates.append(date_obj)
@@ -119,12 +134,12 @@ def save_sessions_to_bucket(session_records, context):
     # S3 idempotency check: skip write if file already exists
     if s3_service.object_exists(bucket_path):
         logger.info(f'Weekly sessions file already exists ({start_date} to {end_date}), skipping write')
-        return {"records": session_records}
+        return {"records": records}
     
     # Save to bucket as JSON Lines format (one JSON object per line)
-    s3_service.put_json_lines(bucket_path, session_records)
+    s3_service.put_json_lines(bucket_path, records)
     
-    return {"records": session_records}
+    return {"records": records}
 
 
 @lambda_handler

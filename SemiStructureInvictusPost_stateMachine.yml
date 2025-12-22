@@ -66,6 +66,7 @@ SemiStructureInvictusPost:
 
                       WriteSessionsToDynamoDB_Map:
                         Type: Map
+                        ItemsPath: "$.result"
                         Iterator:
                           StartAt: EnsureAllFields
                           States:
