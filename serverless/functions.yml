@@ -1,10 +1,22 @@
 dump_post_to_bucket:
   handler: handler.dump_post_to_bucket
+  timeout: 60
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 
 get_invictus_post:
   handler: handler.GET_invictus_post
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   events:
     - s3:
         bucket: ${self:provider.environment.INVICTUS_BUCKET}
@@ -13,31 +25,67 @@ get_invictus_post:
 
 strip_post_html: 
   handler: handler.strip_post_html
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 
 group_post_by_day: 
   handler: transforms.group_post_content_by_day
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 
 segment_days: 
   handler: transforms.segment_days
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
     
 sessions_to_date_records: 
   handler: transforms.sessions_to_json_records_by_day
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 
 clean_session_records: 
   handler: handler.clean_sessions_df_records
+  timeout: 30
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 
 save_sessions_to_bucket: 
   handler: handler.save_sessions_to_bucket
+  timeout: 60
+  memorySize: 256
+  tracing:
+    lambda: true
+  deadLetter:
+    targetArn: ${self:custom.deadLetterQueueArn}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
 

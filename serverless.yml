@@ -17,7 +17,7 @@ useDotenv: true
 provider:
   name: aws
   region: ${env:AWS_REGION}
-  runtime: python3.9
+  runtime: python3.11
   profile: ${env:AWS_PROFILE, 'serverless-invictus-agent'}
   stage: dev
   iam:
@@ -48,9 +48,13 @@ plugins:
   - serverless-step-functions
 
 custom:
+  deadLetterQueueArn:
+    Fn::GetAtt:
+      - DeadLetterQueue
+      - Arn
   pythonRequirements:
     dockerizePip: non-linux
-    dockerImage: public.ecr.aws/sam/build-python3.9
+    dockerImage: public.ecr.aws/sam/build-python3.11
     fileName: requirements-prod.txt
     slim: true
     strip: true

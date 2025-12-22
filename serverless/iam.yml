@@ -36,4 +36,12 @@
     - xray:PutTraceSegments
     - xray:PutTelemetryRecords
   Resource: "*"
+# SQS Permissions - For Dead Letter Queue
+- Effect: Allow
+  Action:
+    - sqs:SendMessage
+  Resource:
+    Fn::GetAtt:
+      - DeadLetterQueue
+      - Arn
 

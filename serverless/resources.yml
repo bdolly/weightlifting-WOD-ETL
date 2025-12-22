@@ -1,4 +1,14 @@
 Resources: 
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: ${self:service}-${opt:stage, self:provider.stage}-dlq
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Environment
+          Value: ${opt:stage, self:provider.stage}
+        - Key: Service
+          Value: ${self:service}
   WorkoutPostsTable:
     Type: AWS::DynamoDB::Table
     Properties:
