@@ -108,7 +108,25 @@ SemiStructureInvictusPost:
                                   segment_d:
                                     "S.$": "$.segment_d"
                                   segment_e:
-                                    "S.$": "$.segment_e" 
+                                    "S.$": "$.segment_e"
+                                ConditionExpression: "attribute_not_exists(date) AND attribute_not_exists(session)"
+                              Retry:
+                                - ErrorEquals:
+                                    - States.ALL
+                                  IntervalSeconds: 2
+                                  MaxAttempts: 3
+                                  BackoffRate: 2.0
+                              Catch:
+                                - ErrorEquals:
+                                    - "ConditionalCheckFailedException"
+                                  ResultPath: "$.error"
+                                  Next: StoreSessionToDB_Skip
+                              End: true
+                            
+                            StoreSessionToDB_Skip:
+                              Type: Pass
+                              Comment: "Session already exists, skipping duplicate write"
+                              Result: "Session already persisted, skipped duplicate write"
                               End: true
                         End: true
                         
