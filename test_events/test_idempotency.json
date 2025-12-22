@@ -1,0 +1,6 @@
+{
+  "posts_per_page": 1,
+  "page": 1,
+  "description": "Test event for idempotency testing - simulates a single post retrieval"
+}
+
