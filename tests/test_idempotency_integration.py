@@ -11,7 +11,6 @@ from datetime import datetime, timedelta, timezone
 
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from handler import dump_post_to_bucket, save_sessions_to_bucket
 from services.idempotency_service import IdempotencyService
 
 
@@ -47,6 +46,9 @@ def test_dump_post_to_bucket_idempotency(mock_context):
     # Reset config module to pick up new env vars
     import config
     config._config = None
+    
+    # Import handlers AFTER setting env vars (they use get_config() at import time)
+    from handler import dump_post_to_bucket
     
     # Create S3 bucket
     s3.create_bucket(Bucket=bucket_name)
@@ -118,6 +120,9 @@ def test_save_sessions_to_bucket_idempotency(mock_context):
     # Reset config module to pick up new env vars
     import config
     config._config = None
+    
+    # Import handlers AFTER setting env vars (they use get_config() at import time)
+    from handler import save_sessions_to_bucket
     
     # Create S3 bucket
     s3.create_bucket(Bucket=bucket_name)
@@ -240,6 +245,9 @@ def test_duplicate_execution_prevention(mock_context):
     # Reset config module to pick up new env vars
     import config
     config._config = None
+    
+    # Import handlers AFTER setting env vars (they use get_config() at import time)
+    from handler import dump_post_to_bucket
     
     # Test data
     post = {
