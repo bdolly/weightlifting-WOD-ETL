@@ -10,6 +10,7 @@ from dateutil.parser import parse
 
 
 s3_resource = boto3.resource('s3')
+s3_client = boto3.client('s3')
 dynamodb_client = boto3.client('dynamodb')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
 
@@ -130,11 +131,34 @@ def dump_post_to_bucket(invictus_raw_post, context):
     bucket_path = 'raw/{posted}__{slug}__raw.json'.format(
         slug=post["slug"], posted=post_date_time_obj.date())
 
-    s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
+    bucket_name = os.environ['INVICTUS_BUCKET']
+    
+    # S3 idempotency check: skip write if object already exists
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=bucket_path)
+        print(f'- Post "{post["title"]["rendered"]}" already exists in bucket, skipping write')
+        return post
+    except Exception as e:
+        error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
+        if error_code == '404':
+            # Object doesn't exist, proceed with write
+            pass
+        else:
+            # Fail-open: if check fails, allow the write
+            print(f'WARNING: S3 idempotency check failed: {str(e)}, proceeding with write')
+
+    # Generate idempotency key for metadata
+    idempotency_key = generate_idempotency_key('dump_post_to_bucket', bucket_path)
+
+    s3object = s3_resource.Object(bucket_name, bucket_path)
     print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
 
     s3object.put(
-        Body=(bytes(json.dumps(post).encode('UTF-8')))
+        Body=(bytes(json.dumps(post).encode('UTF-8'))),
+        Metadata={
+            'idempotency_key': idempotency_key,
+            'operation': 'dump_post_to_bucket'
+        }
     )
 
     return post
