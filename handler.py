@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 @lambda_handler
-def GET_invictus_post(event, context):
+def get_invictus_post(event, context):
     """GET Invictus Weightlifting WP blog post"""
     config = get_config()
     
@@ -28,8 +28,8 @@ def GET_invictus_post(event, context):
     
     posts = api_service.get_posts(posts_per_page=posts_per_page, page=page_num)
     
-    # Return posts as list (Step Functions expects this format)
-    return {"posts": posts} if isinstance(posts, list) else posts
+    # Return posts directly (Step Functions will handle serialization)
+    return posts
 
 
 @lambda_handler
