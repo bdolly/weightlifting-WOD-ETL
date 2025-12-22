@@ -9,12 +9,15 @@ This project automates the extraction of weightlifting workout programs from the
 1. Fetch blog posts from the WordPress REST API
 2. Extract and clean HTML content
 3. Parse and structure workouts by day
-4. Segment workouts into individual exercises P
+4. Segment workouts into individual exercises
 5. Store structured data in DynamoDB and S3
+
+The pipeline includes idempotency mechanisms to prevent duplicate processing and ensure data consistency.
 
 ## Architecture
 
 The pipeline is built using:
+
 - **AWS Lambda** - Serverless compute for data processing
 - **AWS Step Functions** - Orchestrates the ETL workflow
 - **AWS S3** - Stores raw posts and processed JSON data
@@ -69,7 +72,7 @@ graph TB
 
 ### Workflow
 
-```
+```text
 GetPost → DumpPostToStagingBucket → StripPostHTML → GroupByDay → 
 GetDaySegments → SessionsToDateRecordsJSON → CleanSessionRecords → 
 PersistRecords (DynamoDB + S3)
@@ -201,12 +204,14 @@ make remove             # Remove virtual environment
 
 ## Configuration
 
-The main configuration is in `serverless.yml`. Key settings:
+The main configuration is in `serverless.yml` with modular configuration files in `serverless/`. Key settings:
 
 - **Runtime**: Python 3.9
-- **Region**: us-east-1
-- **Stage**: dev (configurable via `--stage` flag)
-- **S3 Bucket**: `invictus-test-213` (configurable via environment)
+- **Region**: Configurable via `AWS_REGION` environment variable (default: us-east-1)
+- **Stage**: dev (configurable via `--stage` flag or `STAGE` environment variable)
+- **S3 Bucket**: Configurable via `INVICTUS_BUCKET` environment variable
+- **Python Requirements**: Uses `requirements-prod.txt` for Lambda packaging
+- **Docker**: Uses Docker for non-Linux pip installations (via `serverless-python-requirements` plugin)
 
 ## Usage
 
@@ -319,11 +324,13 @@ npx serverless logs -f get_invictus_post --tail
 
 ## Testing
 
-The project includes infrastructure tests using `pytest` and `moto` for AWS service mocking.
+The project includes comprehensive tests using `pytest` and `moto` for AWS service mocking.
 
 ### Test Structure
 
-- `tests/test_infrastructure.py` - Tests for DynamoDB tables and Secrets Manager configuration
+- `tests/test_infrastructure.py` - Tests for DynamoDB tables, Secrets Manager configuration, and TTL settings
+- `tests/test_idempotency.py` - Unit tests for idempotency key generation, DynamoDB checks, and S3 idempotency
+- `tests/test_idempotency_integration.py` - Integration tests for idempotency behavior in Lambda functions
 
 ### Running Tests
 
@@ -361,36 +368,49 @@ pytest --cov --cov-report=html
 
 ## Project Structure
 
-```
+```text
 .
-├── handler.py              # Main Lambda handler functions
+├── handler.py              # Main Lambda handler functions (includes idempotency logic)
 ├── transforms.py           # Data transformation functions
-├── serverless.yml          # Serverless Framework configuration
-├── SemiStructureInvictusPost_stateMachine.yml  # Step Functions definition
+├── serverless.yml          # Serverless Framework main configuration
+├── serverless/             # Modular Serverless configuration
+│   ├── environment.yml     # Environment variables
+│   ├── functions.yml       # Lambda function definitions
+│   ├── iam.yml             # IAM role statements
+│   └── resources.yml       # AWS resources (DynamoDB, Secrets Manager, etc.)
+├── SemiStructureInvictusPost_stateMachine.yml  # Step Functions state machine definition
 ├── requirements.txt        # Python dependencies
+├── requirements-prod.txt   # Production Python dependencies (used for Lambda packaging)
 ├── package.json           # Node.js dependencies
 ├── pytest.ini             # Pytest configuration
-├── .python-version         # Python version specification
-├── .gitignore             # Git ignore rules
 ├── Makefile               # Make commands for common tasks
 ├── tests/                  # Test files
 │   ├── __init__.py
-│   └── test_infrastructure.py
+│   ├── test_infrastructure.py      # Infrastructure tests
+│   ├── test_idempotency.py         # Idempotency unit tests
+│   └── test_idempotency_integration.py  # Idempotency integration tests
 └── test_events/           # Sample event data for testing
     ├── get_invictus_post.json
-    └── ...
+    ├── clean_session_records.json
+    ├── group_post_by_day.json
+    ├── segment_days.json
+    ├── segmented_sessions.json
+    ├── save_sessions_to_bucket.json
+    ├── test_idempotency.json
+    └── weekly/            # Weekly session examples
+        └── 2021-01-03__2021-01-08--5-day-weightlifting-program.json
 ```
 
 ## Lambda Functions
 
 - **`get_invictus_post`** - Fetches blog posts from WordPress API
-- **`dump_post_to_bucket`** - Saves raw posts to S3
+- **`dump_post_to_bucket`** - Saves raw posts to S3 (with idempotency checks)
 - **`strip_post_html`** - Removes HTML markup from post content
 - **`group_post_by_day`** - Groups content by workout day
 - **`segment_days`** - Segments workouts into exercise components
 - **`sessions_to_date_records`** - Converts sessions to date-based records
-- **`clean_sessions_df_records`** - Cleans and normalizes session data
-- **`save_sessions_to_bucket`** - Saves processed sessions to S3
+- **`clean_session_records`** - Cleans and normalizes session data
+- **`save_sessions_to_bucket`** - Saves processed sessions to S3 (with idempotency checks)
 
 ## AWS Resources
 
@@ -402,7 +422,8 @@ pytest --cov --cov-report=html
 
 - **IdempotencyTable** - Prevents duplicate processing
   - Partition Key: `idempotency_key` (String)
-  - TTL enabled on `ttl` attribute
+  - TTL enabled on `ttl` attribute (default: 24 hours)
+  - Automatically expires records to prevent table growth
 
 ### Secrets Manager
 
@@ -417,18 +438,32 @@ pytest --cov --cov-report=html
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `INVICTUS_BUCKET` | S3 bucket for storing data | `invictus-test-213` |
-| `INVICTUS_RSS` | RSS feed URL | CrossFit Invictus feed |
+| `INVICTUS_WEIGHTLIFTING_API` | WordPress API endpoint URL | Required |
 | `INVICTUS_WEIGHTLIFTING_API_CAT_ID` | WordPress category ID | `213` |
-| `INVICTUS_USER` | WordPress API username | From `.env` |
-| `INVICTUS_PASS` | WordPress API password | From `.env` |
+| `INVICTUS_USER` | WordPress API username | From `.env` or Secrets Manager |
+| `INVICTUS_PASS` | WordPress API password | From `.env` or Secrets Manager |
 | `DYNAMODB_TABLE` | DynamoDB table name | Auto-generated |
 | `IDEMPOTENCY_TABLE` | Idempotency table name | Auto-generated |
+| `AWS_REGION` | AWS region for deployment | `us-east-1` |
+| `AWS_PROFILE` | AWS CLI profile for deployment | `serverless-invictus-agent` |
+
+## Idempotency
+
+The pipeline implements idempotency to prevent duplicate processing and ensure data consistency:
+
+- **DynamoDB-based idempotency**: Uses an IdempotencyTable to track completed operations
+- **S3-based idempotency**: Checks for existing objects before writing
+- **Fail-open design**: If idempotency checks fail, operations proceed (prevents blocking on infrastructure issues)
+- **TTL-based expiration**: Idempotency records expire after 24 hours to prevent table growth
+
+Idempotency keys are generated using SHA256 hashes of operation names and unique identifiers (e.g., S3 paths, post slugs).
 
 ## Development
 
 ### Code Style
 
 The project uses:
+
 - `autopep8` for code formatting
 - `pycodestyle` for linting
 
@@ -455,24 +490,35 @@ pycodestyle --max-line-length=120 handler.py transforms.py tests/
 ### Adding New Functions
 
 1. Add the function handler to `handler.py` or `transforms.py`
-2. Define the function in `serverless.yml`
-3. Update the Step Functions definition if needed
+2. Define the function in `serverless/functions.yml`
+3. Update the Step Functions definition in `SemiStructureInvictusPost_stateMachine.yml` if needed
 4. Add tests in `tests/`
+5. Consider adding idempotency checks for functions that write data
 
 ## Troubleshooting
 
 ### Common Issues
 
 **Import errors with moto:**
+
 - Ensure you're using Python 3.9
-- Reinstall dependencies: `uv pip install -r requirements.txt`
+- Reinstall dependencies: `uv pip install -r requirements.txt` or `make install-python`
 
 **AWS credential errors:**
+
 - Verify AWS CLI is configured: `aws configure`
-- Check Serverless profile: `serverless.yml` uses `serverless-agent` profile
+- Check Serverless profile: `serverless.yml` uses `serverless-invictus-agent` profile by default
+- Set `AWS_PROFILE` environment variable if using a different profile
 
 **Deployment failures:**
-- Check IAM permissions for the deployment role
-- Verify all environment variables are set
-- Check CloudFormation stack events in AWS Console
 
+- Check IAM permissions for the deployment role
+- Verify all environment variables are set in `.env` or AWS Secrets Manager
+- Check CloudFormation stack events in AWS Console
+- Ensure S3 bucket exists and is accessible
+
+**Idempotency issues:**
+
+- Verify `IDEMPOTENCY_TABLE` environment variable is set
+- Check DynamoDB table exists and has correct schema
+- Review CloudWatch logs for idempotency warnings
