@@ -4,6 +4,10 @@ Lambda handler functions for Invictus Weightlifting WOD ETL pipeline.
 This module provides Lambda handlers that use the service layer
 for AWS operations and external API calls.
 """
+import json
+import os
+import boto3
+from typing import Optional, Tuple
 from bs4 import BeautifulSoup
 from dateutil.parser import parse
 from logger_config import get_logger
@@ -16,18 +20,98 @@ from utils.decorators import lambda_handler
 logger = get_logger(__name__)
 
 
+def get_wordpress_credentials() -> Tuple[Optional[str], Optional[str]]:
+    """
+    Retrieve WordPress credentials from Secrets Manager with fallback
+    to environment variables.
+
+    Returns:
+        Tuple of (username, password) or (None, None) if unavailable.
+
+    Raises:
+        ValueError: If both Secrets Manager and env vars unavailable.
+    """
+    config = get_config()
+
+    # Try Secrets Manager first if secret name is configured
+    if config.invictus_secret_name:
+        try:
+            secrets_client = boto3.client(
+                'secretsmanager', region_name=config.aws_region
+            )
+            response = secrets_client.get_secret_value(
+                SecretId=config.invictus_secret_name
+            )
+            secret_string = response['SecretString']
+            secret_data = json.loads(secret_string)
+
+            username = secret_data.get('username')
+            password = secret_data.get('password')
+
+            if username and password:
+                logger.info(
+                    f'Successfully retrieved credentials from '
+                    f'Secrets Manager: {config.invictus_secret_name}'
+                )
+                return username, password
+            else:
+                logger.warning(
+                    f'Secrets Manager secret '
+                    f'{config.invictus_secret_name} exists but missing '
+                    f'username/password, falling back to env vars'
+                )
+        except Exception as e:
+            logger.warning(
+                f'Failed to retrieve credentials from Secrets Manager '
+                f'({config.invictus_secret_name}): {str(e)}. '
+                f'Falling back to environment variables.'
+            )
+
+    # Fallback to environment variables
+    username = config.invictus_user or os.environ.get('INVICTUS_USER')
+    password = config.invictus_pass or os.environ.get('INVICTUS_PASS')
+
+    if username and password:
+        logger.info('Using credentials from environment variables')
+        return username, password
+
+    # Both methods failed
+    secret_name = config.invictus_secret_name or "not configured"
+    error_msg = (
+        'WordPress credentials not found in Secrets Manager or '
+        f'environment variables. Secret name: {secret_name}'
+    )
+    logger.error(error_msg)
+    raise ValueError(error_msg)
+
+
 @lambda_handler
 def get_invictus_post(event, context):
     """GET Invictus Weightlifting WP blog post"""
     config = get_config()
-    
+
+    # Retrieve credentials from Secrets Manager (with env var fallback)
+    try:
+        username, password = get_wordpress_credentials()
+        # Credentials are retrieved but not currently used by API service
+        # They are available for future use if WordPress API requires auth
+        if username and password:
+            logger.debug('WordPress credentials retrieved successfully')
+    except ValueError as e:
+        # If credentials are required in the future, this will raise error
+        # For now, we log a warning but continue (API may work without auth)
+        logger.warning(f'Could not retrieve WordPress credentials: {str(e)}')
+        username, password = None, None
+
     api_service = InvictusAPIService(config.invictus_weightlifting_api)
-    
+
     posts_per_page = event.get('posts_per_page', False) or 1
     page_num = event.get('page', False) or 1
-    
-    posts = api_service.get_posts(posts_per_page=posts_per_page, page=page_num)
-    
+
+    posts = api_service.get_posts(
+        posts_per_page=posts_per_page, page=page_num
+    )
+
     # Return posts directly (Step Functions will handle serialization)
     return posts
 
