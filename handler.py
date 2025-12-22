@@ -2,13 +2,100 @@ import os
 import json
 import requests
 import boto3
+import hashlib
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from transforms import *
 from dateutil.parser import parse
 
 
 s3_resource = boto3.resource('s3')
+dynamodb_client = boto3.client('dynamodb')
 invictus_api = os.environ['INVICTUS_WEIGHTLIFTING_API']
+
+
+def generate_idempotency_key(operation, identifier):
+    """
+    Generate a unique idempotency key for an operation.
+    
+    Args:
+        operation: The operation name (e.g., 'dump_post_to_bucket', 'save_sessions_to_bucket')
+        identifier: A unique identifier for the operation (e.g., S3 path, post slug)
+    
+    Returns:
+        A SHA256 hash string representing the idempotency key
+    """
+    key_string = f"{operation}:{identifier}"
+    return hashlib.sha256(key_string.encode('utf-8')).hexdigest()
+
+
+def check_idempotency(idempotency_key):
+    """
+    Check if an operation has already been completed.
+    
+    Args:
+        idempotency_key: The idempotency key to check
+    
+    Returns:
+        True if operation already completed, False otherwise
+    
+    Note:
+        Fail-open: Returns False (allow operation) if check fails
+    """
+    try:
+        table_name = os.environ.get('IDEMPOTENCY_TABLE')
+        if not table_name:
+            print('WARNING: IDEMPOTENCY_TABLE not set, skipping idempotency check')
+            return False
+        
+        response = dynamodb_client.get_item(
+            TableName=table_name,
+            Key={'idempotency_key': {'S': idempotency_key}}
+        )
+        
+        if 'Item' in response:
+            print(f'Idempotency check: Operation already completed (key: {idempotency_key[:16]}...)')
+            return True
+        
+        return False
+    except Exception as e:
+        # Fail-open: if idempotency check fails, allow the operation
+        print(f'WARNING: Idempotency check failed: {str(e)}, allowing operation to proceed')
+        return False
+
+
+def mark_idempotency_complete(idempotency_key, ttl_hours=24):
+    """
+    Mark an operation as complete in the idempotency table.
+    
+    Args:
+        idempotency_key: The idempotency key to mark as complete
+        ttl_hours: Number of hours until the record expires (default: 24)
+    
+    Note:
+        Fail-open: Logs error but doesn't raise exception
+    """
+    try:
+        table_name = os.environ.get('IDEMPOTENCY_TABLE')
+        if not table_name:
+            print('WARNING: IDEMPOTENCY_TABLE not set, skipping idempotency marking')
+            return
+        
+        # Calculate TTL timestamp (Unix epoch time)
+        ttl_timestamp = int((datetime.utcnow() + timedelta(hours=ttl_hours)).timestamp())
+        
+        dynamodb_client.put_item(
+            TableName=table_name,
+            Item={
+                'idempotency_key': {'S': idempotency_key},
+                'ttl': {'N': str(ttl_timestamp)},
+                'completed_at': {'S': datetime.utcnow().isoformat()}
+            }
+        )
+        print(f'Idempotency marked complete (key: {idempotency_key[:16]}..., TTL: {ttl_hours}h)')
+    except Exception as e:
+        # Fail-open: if marking fails, log but don't fail the operation
+        print(f'WARNING: Failed to mark idempotency complete: {str(e)}')
 
 
 def GET_invictus_post(event, context):
