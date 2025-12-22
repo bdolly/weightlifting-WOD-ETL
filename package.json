@@ -2,9 +2,7 @@
   "name": "invictus-weightlifting",
   "description": "",
   "version": "0.1.0",
-  "dependencies": {
-    "serverless-pseudo-parameters": "^2.6.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "serverless": "^3.38.0",
     "serverless-python-requirements": "^6.1.2",
