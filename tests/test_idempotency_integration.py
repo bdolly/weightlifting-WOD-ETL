@@ -9,14 +9,10 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 
-# Add parent directory to path to import handler
+# Add parent directory to path to import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from handler import (
-    dump_post_to_bucket,
-    save_sessions_to_bucket,
-    generate_idempotency_key,
-    check_idempotency
-)
+from handler import dump_post_to_bucket, save_sessions_to_bucket
+from services.idempotency_service import IdempotencyService
 
 
 @pytest.fixture
@@ -83,7 +79,7 @@ def test_dump_post_to_bucket_idempotency(mock_context):
     assert 'ETag' in response
     
     # Verify idempotency record was created
-    key = generate_idempotency_key('dump_post_to_bucket', 'raw/2024-01-01__test-post__raw.json')
+    key = IdempotencyService.generate_key('dump_post_to_bucket', 'raw/2024-01-01__test-post__raw.json')
     idempotency_response = dynamodb.get_item(
         TableName=table_name,
         Key={'idempotency_key': {'S': key}}
@@ -177,7 +173,7 @@ def test_idempotency_table_ttl_expiration():
     os.environ['IDEMPOTENCY_TABLE'] = table_name
     
     # Add item with past TTL (expired)
-    key = generate_idempotency_key('test_op', 'test_id')
+    key = IdempotencyService.generate_key('test_op', 'test_id')
     now = datetime.now(timezone.utc)
     expired_ttl = int((now - timedelta(hours=1)).timestamp())
     
@@ -240,7 +236,7 @@ def test_duplicate_execution_prevention(mock_context):
     
     context = mock_context
     bucket_path = 'raw/2024-01-01__test-post__raw.json'
-    key = generate_idempotency_key('dump_post_to_bucket', bucket_path)
+    key = IdempotencyService.generate_key('dump_post_to_bucket', bucket_path)
     
     # Manually mark as complete (simulating previous execution)
     now = datetime.now(timezone.utc)
@@ -255,7 +251,8 @@ def test_duplicate_execution_prevention(mock_context):
     )
     
     # Verify idempotency check detects previous execution
-    assert check_idempotency(key) is True
+    service = IdempotencyService(table_name)
+    assert service.check(key) is True
     
     # Execute function - should skip due to idempotency check
     result = dump_post_to_bucket(post, context)
