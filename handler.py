@@ -4,7 +4,6 @@ Lambda handler functions for Invictus Weightlifting WOD ETL pipeline.
 This module provides Lambda handlers that use the service layer
 for AWS operations and external API calls.
 """
-import os
 from bs4 import BeautifulSoup
 from dateutil.parser import parse
 from logger_config import get_logger
