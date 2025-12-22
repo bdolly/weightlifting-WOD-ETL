@@ -242,3 +242,12 @@ def save_sessions_to_bucket(session_records, context):
     )
 
     return json.dumps(session_records)
+
+
+def clean_sessions_df_records(event, context):
+    """
+    Wrapper function for clean_sessions_df_records from transforms module.
+    Maintains backward compatibility with functions.yml handler reference.
+    """
+    from transforms import clean_sessions_df_records as transform_clean_sessions
+    return transform_clean_sessions(event, context)
