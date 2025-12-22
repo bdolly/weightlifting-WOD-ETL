@@ -152,8 +152,11 @@ def test_save_sessions_to_bucket_idempotency(mock_context):
     objects = s3.list_objects_v2(Bucket=bucket_name, Prefix='weekly/')
     assert objects['KeyCount'] == 1
     
-    # Verify results are the same
-    assert result1 == result2
+    # Verify results are the same (ignore metadata which contains unique correlation_id)
+    # Both should return dict with 'records' key containing the same session records
+    assert result1.get('records') == result2.get('records')
+    assert len(result1.get('records', [])) == 2
+    assert len(result2.get('records', [])) == 2
 
 
 @pytest.mark.idempotency_integration
