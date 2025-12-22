@@ -44,4 +44,19 @@
     Fn::GetAtt:
       - DeadLetterQueue
       - Arn
+# Secrets Manager Permissions - For WordPress credentials
+- Effect: Allow
+  Action:
+    - secretsmanager:GetSecretValue
+  Resource:
+    - "arn:aws:secretsmanager:${opt:region, self:provider.region}:*:secret:${self:provider.environment.INVICTUS_SECRET_NAME}*"
+# KMS Permissions - For Secrets Manager decryption
+- Effect: Allow
+  Action:
+    - kms:Decrypt
+  Resource: "*"
+  Condition:
+    StringEquals:
+      kms:ViaService:
+        - "secretsmanager.${opt:region, self:provider.region}.amazonaws.com"
 

@@ -16,6 +16,20 @@ get_invictus_post:
         bucket: ${self:provider.environment.INVICTUS_BUCKET}
   layers:
     - { Ref: PythonRequirementsLambdaLayer }
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource:
+        - "arn:aws:secretsmanager:${opt:region, self:provider.region}:*:secret:${self:provider.environment.INVICTUS_SECRET_NAME}*"
+    - Effect: Allow
+      Action:
+        - kms:Decrypt
+      Resource: "*"
+      Condition:
+        StringEquals:
+          kms:ViaService:
+            - "secretsmanager.${opt:region, self:provider.region}.amazonaws.com"
 
 strip_post_html: 
   handler: handler.strip_post_html
