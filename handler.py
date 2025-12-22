@@ -205,7 +205,23 @@ def save_sessions_to_bucket(session_records, context):
     bucket_path = 'weekly/{start_date}__{end_date}--5-day-weightlifting-program.json'.format(
         start_date=start_date, end_date=end_date)
 
-    s3object = s3_resource.Object(os.environ['INVICTUS_BUCKET'], bucket_path)
+    bucket_name = os.environ['INVICTUS_BUCKET']
+    
+    # S3 idempotency check: skip write if file already exists
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=bucket_path)
+        print(f'- Weekly sessions file already exists ({start_date} to {end_date}), skipping write')
+        return json.dumps(session_records)
+    except Exception as e:
+        error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
+        if error_code == '404':
+            # File doesn't exist, proceed with write
+            pass
+        else:
+            # Fail-open: if check fails, allow the write
+            print(f'WARNING: S3 idempotency check failed: {str(e)}, proceeding with write')
+
+    s3object = s3_resource.Object(bucket_name, bucket_path)
 
     # Save to bucket as lines of json so that we can query it using S3 select
     # JSON Lines format: one JSON object per line
