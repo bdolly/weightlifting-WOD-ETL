@@ -6,7 +6,7 @@ import datetime as dt
 from datetime import timedelta, timezone
 from typing import Optional
 from logger_config import get_logger
-from services.dynamodb_service import DynamoDBService
+from .dynamodb_service import DynamoDBService
 
 logger = get_logger(__name__)
 
