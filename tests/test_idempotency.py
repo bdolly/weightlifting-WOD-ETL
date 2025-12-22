@@ -5,7 +5,7 @@ import pytest
 from moto import mock_aws
 import boto3
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import sys
 
 # Add parent directory to path to import handler
@@ -91,14 +91,15 @@ def test_check_idempotency_found():
     
     # Add item to table
     key = generate_idempotency_key('test_op', 'test_id')
-    ttl_timestamp = int((datetime.utcnow() + timedelta(hours=24)).timestamp())
+    now = datetime.now(timezone.utc)
+    ttl_timestamp = int((now + timedelta(hours=24)).timestamp())
     
     dynamodb.put_item(
         TableName=table_name,
         Item={
             'idempotency_key': {'S': key},
             'ttl': {'N': str(ttl_timestamp)},
-            'completed_at': {'S': datetime.utcnow().isoformat()}
+            'completed_at': {'S': now.isoformat()}
         }
     )
     
@@ -226,6 +227,7 @@ def test_dynamodb_conditional_write():
     )
     
     # First write should succeed
+    # Use ExpressionAttributeNames to escape reserved keyword 'date'
     dynamodb.put_item(
         TableName=table_name,
         Item={
@@ -233,7 +235,11 @@ def test_dynamodb_conditional_write():
             'session': {'S': 'session-1'},
             'warm_up': {'S': 'test'}
         },
-        ConditionExpression='attribute_not_exists(date) AND attribute_not_exists(session)'
+        ConditionExpression='attribute_not_exists(#date) AND attribute_not_exists(#session)',
+        ExpressionAttributeNames={
+            '#date': 'date',
+            '#session': 'session'
+        }
     )
     
     # Verify item exists
@@ -252,7 +258,11 @@ def test_dynamodb_conditional_write():
                 'session': {'S': 'session-1'},
                 'warm_up': {'S': 'different'}
             },
-            ConditionExpression='attribute_not_exists(date) AND attribute_not_exists(session)'
+            ConditionExpression='attribute_not_exists(#date) AND attribute_not_exists(#session)',
+            ExpressionAttributeNames={
+                '#date': 'date',
+                '#session': 'session'
+            }
         )
     
     assert 'ConditionalCheckFailedException' in str(exc_info.value)

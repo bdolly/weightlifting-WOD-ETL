@@ -150,6 +150,9 @@ plan:
 	@echo "Deployment Plan (Dry Run) - $(STAGE) stage"
 	@echo "=========================================="
 	@echo ""
+	@echo "Cleaning previous build artifacts..."
+	@rm -rf .serverless/plan-package
+	@echo ""
 	@echo "1. Compiled Serverless Configuration:"
 	@echo "--------------------------------------"
 	@$(SERVERLESS) print --stage $(STAGE) 2>/dev/null || $(SERVERLESS) print --stage $(STAGE) --format json
@@ -181,6 +184,9 @@ plan-prod:
 	@echo "Deployment Plan (Dry Run) - prod stage"
 	@echo "=========================================="
 	@echo ""
+	@echo "Cleaning previous build artifacts..."
+	@rm -rf .serverless/plan-package-prod
+	@echo ""
 	@echo "1. Compiled Serverless Configuration:"
 	@echo "--------------------------------------"
 	@$(SERVERLESS) print --stage prod 2>/dev/null || $(SERVERLESS) print --stage prod --format json
@@ -208,10 +214,14 @@ plan-prod:
 	@echo "  Run 'make deploy-prod' to apply these changes."
 
 deploy:
+	@echo "Cleaning previous build artifacts..."
+	@rm -rf .serverless/
 	@echo "Deploying to $(STAGE) stage..."
 	@$(SERVERLESS) deploy --stage $(STAGE)
 
 deploy-prod:
+	@echo "Cleaning previous build artifacts..."
+	@rm -rf .serverless/
 	@echo "Deploying to prod stage..."
 	@$(SERVERLESS) deploy --stage prod
 

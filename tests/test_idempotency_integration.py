@@ -7,7 +7,7 @@ import boto3
 import os
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add parent directory to path to import handler
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -34,7 +34,7 @@ def mock_context():
 
 @pytest.mark.idempotency_integration
 @mock_aws()
-def test_dump_post_to_bucket_idempotency():
+def test_dump_post_to_bucket_idempotency(mock_context):
     """Test that dump_post_to_bucket is idempotent."""
     # Setup
     s3 = boto3.client('s3', region_name='us-east-1')
@@ -70,7 +70,7 @@ def test_dump_post_to_bucket_idempotency():
         'content': {'rendered': '<p>Test content</p>'}
     }
     
-    context = mock_context()
+    context = mock_context
     
     # First execution - should write to S3
     result1 = dump_post_to_bucket(post, context)
@@ -103,7 +103,7 @@ def test_dump_post_to_bucket_idempotency():
 
 @pytest.mark.idempotency_integration
 @mock_aws()
-def test_save_sessions_to_bucket_idempotency():
+def test_save_sessions_to_bucket_idempotency(mock_context):
     """Test that save_sessions_to_bucket is idempotent."""
     # Setup
     s3 = boto3.client('s3', region_name='us-east-1')
@@ -122,7 +122,7 @@ def test_save_sessions_to_bucket_idempotency():
         {'date': '2024-01-02', 'session': 'session-2', 'warm_up': 'test'}
     ]
     
-    context = mock_context()
+    context = mock_context
     
     # First execution - should write to S3
     result1 = save_sessions_to_bucket(session_records, context)
@@ -178,14 +178,15 @@ def test_idempotency_table_ttl_expiration():
     
     # Add item with past TTL (expired)
     key = generate_idempotency_key('test_op', 'test_id')
-    expired_ttl = int((datetime.utcnow() - timedelta(hours=1)).timestamp())
+    now = datetime.now(timezone.utc)
+    expired_ttl = int((now - timedelta(hours=1)).timestamp())
     
     dynamodb.put_item(
         TableName=table_name,
         Item={
             'idempotency_key': {'S': key},
             'ttl': {'N': str(expired_ttl)},
-            'completed_at': {'S': datetime.utcnow().isoformat()}
+            'completed_at': {'S': now.isoformat()}
         }
     )
     
@@ -198,13 +199,13 @@ def test_idempotency_table_ttl_expiration():
     
     # Verify TTL is in the past
     ttl_value = int(response['Item']['ttl']['N'])
-    current_timestamp = int(datetime.utcnow().timestamp())
+    current_timestamp = int(datetime.now(timezone.utc).timestamp())
     assert ttl_value < current_timestamp
 
 
 @pytest.mark.idempotency_integration
 @mock_aws()
-def test_duplicate_execution_prevention():
+def test_duplicate_execution_prevention(mock_context):
     """Test that duplicate executions are prevented."""
     s3 = boto3.client('s3', region_name='us-east-1')
     dynamodb = boto3.client('dynamodb', region_name='us-east-1')
@@ -237,18 +238,19 @@ def test_duplicate_execution_prevention():
         'content': {'rendered': '<p>Test content</p>'}
     }
     
-    context = mock_context()
+    context = mock_context
     bucket_path = 'raw/2024-01-01__test-post__raw.json'
     key = generate_idempotency_key('dump_post_to_bucket', bucket_path)
     
     # Manually mark as complete (simulating previous execution)
-    ttl_timestamp = int((datetime.utcnow() + timedelta(hours=24)).timestamp())
+    now = datetime.now(timezone.utc)
+    ttl_timestamp = int((now + timedelta(hours=24)).timestamp())
     dynamodb.put_item(
         TableName=table_name,
         Item={
             'idempotency_key': {'S': key},
             'ttl': {'N': str(ttl_timestamp)},
-            'completed_at': {'S': datetime.utcnow().isoformat()}
+            'completed_at': {'S': now.isoformat()}
         }
     )
     
