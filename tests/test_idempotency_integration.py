@@ -39,6 +39,15 @@ def test_dump_post_to_bucket_idempotency(mock_context):
     bucket_name = 'test-invictus-bucket'
     table_name = 'test-idempotency-table'
     
+    # Set environment variables BEFORE creating resources (config validates at import)
+    os.environ['INVICTUS_BUCKET'] = bucket_name
+    os.environ['IDEMPOTENCY_TABLE'] = table_name
+    os.environ['INVICTUS_WEIGHTLIFTING_API'] = 'https://api.example.com'
+    
+    # Reset config module to pick up new env vars
+    import config
+    config._config = None
+    
     # Create S3 bucket
     s3.create_bucket(Bucket=bucket_name)
     
@@ -53,10 +62,6 @@ def test_dump_post_to_bucket_idempotency(mock_context):
         ],
         BillingMode='PAY_PER_REQUEST'
     )
-    
-    # Set environment variables
-    os.environ['INVICTUS_BUCKET'] = bucket_name
-    os.environ['IDEMPOTENCY_TABLE'] = table_name
     
     # Test data
     post = {
@@ -106,11 +111,16 @@ def test_save_sessions_to_bucket_idempotency(mock_context):
     
     bucket_name = 'test-invictus-bucket'
     
+    # Set environment variables BEFORE creating resources (config validates at import)
+    os.environ['INVICTUS_BUCKET'] = bucket_name
+    os.environ['INVICTUS_WEIGHTLIFTING_API'] = 'https://api.example.com'
+    
+    # Reset config module to pick up new env vars
+    import config
+    config._config = None
+    
     # Create S3 bucket
     s3.create_bucket(Bucket=bucket_name)
-    
-    # Set environment variable
-    os.environ['INVICTUS_BUCKET'] = bucket_name
     
     # Test data
     session_records = [
@@ -222,9 +232,14 @@ def test_duplicate_execution_prevention(mock_context):
         BillingMode='PAY_PER_REQUEST'
     )
     
-    # Set environment variables
+    # Set environment variables BEFORE creating resources (config validates at import)
     os.environ['INVICTUS_BUCKET'] = bucket_name
     os.environ['IDEMPOTENCY_TABLE'] = table_name
+    os.environ['INVICTUS_WEIGHTLIFTING_API'] = 'https://api.example.com'
+    
+    # Reset config module to pick up new env vars
+    import config
+    config._config = None
     
     # Test data
     post = {
