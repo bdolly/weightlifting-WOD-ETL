@@ -109,7 +109,10 @@ SemiStructureInvictusPost:
                                     "S.$": "$.segment_d"
                                   segment_e:
                                     "S.$": "$.segment_e"
-                                ConditionExpression: "attribute_not_exists(date) AND attribute_not_exists(session)"
+                                ConditionExpression: "attribute_not_exists(#date) AND attribute_not_exists(#session)"
+                                ExpressionAttributeNames:
+                                  "#date": "date"
+                                  "#session": "session"
                               Retry:
                                 - ErrorEquals:
                                     - States.ALL
