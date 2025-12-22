@@ -42,7 +42,7 @@ segment_days:
     - { Ref: PythonRequirementsLambdaLayer }
     
 sessions_to_date_records: 
-  handler: transforms.sessions_to_json_records_by_day
+  handler: handler.sessions_to_json_records_by_day
   timeout: 30
   memorySize: 256
   tracing: Active

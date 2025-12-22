@@ -159,6 +159,16 @@ def save_sessions_to_bucket(session_records, context):
 
 
 @lambda_handler
+def sessions_to_json_records_by_day(event, context):
+    """
+    Wrapper function for sessions_to_json_records_by_day from transforms module.
+    Ensures proper Lambda handler format for Step Functions.
+    """
+    from transforms import sessions_to_json_records_by_day as transform_sessions_to_records
+    return transform_sessions_to_records(event, context)
+
+
+@lambda_handler
 def clean_sessions_df_records(event, context):
     """
     Wrapper function for clean_sessions_df_records from transforms module.

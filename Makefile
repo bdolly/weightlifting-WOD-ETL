@@ -276,6 +276,52 @@ logs-tail:
 	@echo "Tailing logs for $(FUNC)..."
 	@$(SERVERLESS) logs -f $(FUNC) --tail --stage $(STAGE)
 
+# Step Functions
+sf-list-executions:
+	@echo "Listing recent Step Functions executions..."
+	@aws stepfunctions list-executions \
+		--state-machine-arn "arn:aws:states:$${AWS_REGION:-us-east-1}:$${AWS_ACCOUNT_ID:-}:stateMachine:SemiStructureInvictusPostStateMachine-${STAGE}" \
+		--max-results 10 \
+		--query 'executions[*].[executionArn,name,status,startDate]' \
+		--output table || echo "Error: Could not list executions. Check AWS credentials and region."
+
+sf-get-execution:
+	@if [ -z "$(EXECUTION_ARN)" ]; then \
+		echo "Error: EXECUTION_ARN required. Usage: make sf-get-execution EXECUTION_ARN=arn:aws:states:..."; \
+		echo "Or use: make sf-list-executions to see recent executions"; \
+		exit 1; \
+	fi
+	@echo "Getting execution details for $(EXECUTION_ARN)..."
+	@aws stepfunctions describe-execution \
+		--execution-arn "$(EXECUTION_ARN)" \
+		--query '{Status:status,StartDate:startDate,StopDate:stopDate,Input:input,Output:output}' \
+		--output json | python3 -m json.tool || echo "Error: Could not get execution details."
+
+sf-get-execution-history:
+	@if [ -z "$(EXECUTION_ARN)" ]; then \
+		echo "Error: EXECUTION_ARN required. Usage: make sf-get-execution-history EXECUTION_ARN=arn:aws:states:..."; \
+		echo "Or use: make sf-list-executions to see recent executions"; \
+		exit 1; \
+	fi
+	@echo "Getting execution history for $(EXECUTION_ARN)..."
+	@aws stepfunctions get-execution-history \
+		--execution-arn "$(EXECUTION_ARN)" \
+		--query 'events[*].[id,type,timestamp,{State:stateEnteredEventDetails.stateMachine.name,Input:stateEnteredEventDetails.input,Output:stateExitedEventDetails.output,Error:executionFailedEventDetails.error}]' \
+		--output table || echo "Error: Could not get execution history."
+
+sf-logs:
+	@if [ -z "$(EXECUTION_ARN)" ]; then \
+		echo "Error: EXECUTION_ARN required. Usage: make sf-logs EXECUTION_ARN=arn:aws:states:..."; \
+		echo "Or use: make sf-list-executions to see recent executions"; \
+		exit 1; \
+	fi
+	@echo "Getting execution logs for $(EXECUTION_ARN)..."
+	@aws stepfunctions get-execution-history \
+		--execution-arn "$(EXECUTION_ARN)" \
+		--reverse-order \
+		--query 'events[*].[timestamp,type,{Details:stateEnteredEventDetails.stateMachine.name || executionFailedEventDetails.error || executionSucceededEventDetails.output}]' \
+		--output table || echo "Error: Could not get execution logs."
+
 # Code Quality
 lint:
 	@echo "Running linting checks..."

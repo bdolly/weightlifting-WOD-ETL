@@ -306,6 +306,9 @@ def clean_sessions_df_records(event, ctx):
         # Fallback: try to extract records from dict structure
         records = event.get('records', event.get('data', [event] if not isinstance(event, list) else event))
     
+    # Define all expected fields that should always be present
+    expected_fields = ['warm_up', 'segment_a', 'segment_b', 'segment_c', 'segment_d', 'segment_e']
+    
     cleaned_records = []
     for record in records:
         # Rename columns
@@ -324,6 +327,11 @@ def clean_sessions_df_records(event, ctx):
         # Fill None values
         if cleaned_record.get('session') is None:
             cleaned_record['session'] = 'Rest Day'
+        
+        # Ensure all expected fields are present (even if empty)
+        for field in expected_fields:
+            if field not in cleaned_record:
+                cleaned_record[field] = ''
         
         # Fill all None values with empty string
         for key in cleaned_record:

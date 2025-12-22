@@ -68,27 +68,8 @@ SemiStructureInvictusPost:
                         Type: Map
                         ItemsPath: "$.result"
                         Iterator:
-                          StartAt: EnsureAllFields
+                          StartAt: StoreSessionToDB
                           States:
-                            EnsureAllFields:
-                              Type: Pass
-                              Result:
-                                warm_up: ""
-                                segment_a: ""
-                                segment_b: ""
-                                segment_c: ""
-                                segment_d: ""
-                                segment_e: ""
-                              ResultPath: "$.defaults"
-                              Next: MergeDefaults
-                            
-                            MergeDefaults:
-                              Type: Pass
-                              Parameters:
-                                merged.$: "States.JsonMerge($, $.defaults, false)"
-                              OutputPath: "$.merged"
-                              Next: StoreSessionToDB
-                            
                             StoreSessionToDB: 
                               Type: Task 
                               Resource: "arn:aws:states:::dynamodb:putItem"
@@ -111,27 +92,12 @@ SemiStructureInvictusPost:
                                     "S.$": "$.segment_d"
                                   segment_e:
                                     "S.$": "$.segment_e"
-                                ConditionExpression: "attribute_not_exists(#date) AND attribute_not_exists(#session)"
-                                ExpressionAttributeNames:
-                                  "#date": "date"
-                                  "#session": "session"
                               Retry:
                                 - ErrorEquals:
                                     - States.ALL
                                   IntervalSeconds: 2
                                   MaxAttempts: 3
                                   BackoffRate: 2.0
-                              Catch:
-                                - ErrorEquals:
-                                    - "ConditionalCheckFailedException"
-                                  ResultPath: "$.error"
-                                  Next: StoreSessionToDB_Skip
-                              End: true
-                            
-                            StoreSessionToDB_Skip:
-                              Type: Pass
-                              Comment: "Session already exists, skipping duplicate write"
-                              Result: "Session already persisted, skipped duplicate write"
                               End: true
                         End: true
                         

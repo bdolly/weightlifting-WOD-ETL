@@ -372,10 +372,184 @@ class TestCleanSessionsDfRecords:
         assert result[0]["segment_a"] == "Segment A text"
         assert result[0]["segment_b"] == "Segment B text"
 
+    def test_all_column_mappings(self):
+        """Test that all column mappings are applied correctly."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "Suggested Warm-Up": "Warm up",
+                "A.": "Segment A",
+                "B.": "Segment B",
+                "C.": "Segment C",
+                "D.": "Segment D",
+                "E.": "Segment E"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 1
+        assert result[0]["warm_up"] == "Warm up"
+        assert result[0]["segment_a"] == "Segment A"
+        assert result[0]["segment_b"] == "Segment B"
+        assert result[0]["segment_c"] == "Segment C"
+        assert result[0]["segment_d"] == "Segment D"
+        assert result[0]["segment_e"] == "Segment E"
+
+    def test_drops_s_and_r_columns(self):
+        """Test that 's' and 'r' columns are dropped."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "s": "should be dropped",
+                "r": "should be dropped",
+                "A.": "Segment A"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 1
+        assert "s" not in result[0]
+        assert "r" not in result[0]
+        assert result[0]["segment_a"] == "Segment A"
+
+    def test_parses_and_formats_date(self):
+        """Test that dates are parsed and formatted correctly."""
+        test_cases = [
+            ("2024-04-01", "2024-04-01"),
+            ("2024-04-01T10:00:00", "2024-04-01"),
+            ("2024-04-01T10:00:00Z", "2024-04-01"),
+            ("April 1, 2024", "2024-04-01"),
+            ("04/01/2024", "2024-04-01"),
+        ]
+        
+        for input_date, expected_date in test_cases:
+            records = [
+                {
+                    "date": input_date,
+                    "session": "Monday (Session One)"
+                }
+            ]
+            
+            result = clean_sessions_df_records(records, None)
+            
+            assert result[0]["date"] == expected_date
+
+    def test_handles_none_session_as_rest_day(self):
+        """Test that None session values are replaced with 'Rest Day'."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": None
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert result[0]["session"] == "Rest Day"
+
+    def test_handles_missing_session_field(self):
+        """Test that missing session field is set to 'Rest Day'."""
+        records = [
+            {
+                "date": "2024-04-01"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        # When session field is missing, it should be set to 'Rest Day'
+        assert result[0]["session"] == "Rest Day"
+
+    def test_fills_none_values_with_empty_string(self):
+        """Test that None values are replaced with empty strings."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "warm_up": None,
+                "segment_a": None,
+                "segment_b": "Some text",
+                "segment_c": None
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert result[0]["warm_up"] == ""
+        assert result[0]["segment_a"] == ""
+        assert result[0]["segment_b"] == "Some text"
+        assert result[0]["segment_c"] == ""
+
+    def test_handles_multiple_records(self):
+        """Test that multiple records are processed correctly."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "A.": "Segment A Day 1"
+            },
+            {
+                "date": "2024-04-02",
+                "session": "Tuesday (Session Two)",
+                "B.": "Segment B Day 2"
+            },
+            {
+                "date": "2024-04-03",
+                "session": "Wednesday (Session Three)",
+                "C.": "Segment C Day 3"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 3
+        assert result[0]["date"] == "2024-04-01"
+        assert result[0]["segment_a"] == "Segment A Day 1"
+        assert result[1]["date"] == "2024-04-02"
+        assert result[1]["segment_b"] == "Segment B Day 2"
+        assert result[2]["date"] == "2024-04-03"
+        assert result[2]["segment_c"] == "Segment C Day 3"
+
     def test_handles_decorator_wrapped_input(self):
         """Test handles input wrapped by lambda_handler decorator."""
         event = {
             "result": [
+                {
+                    "date": "2024-04-01",
+                    "session": "Monday (Session One)",
+                    "A.": "Segment A"
+                }
+            ]
+        }
+        
+        result = clean_sessions_df_records(event, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-01"
+        assert result[0]["segment_a"] == "Segment A"
+
+    def test_handles_list_input_directly(self):
+        """Test handles list input directly."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-01"
+
+    def test_handles_dict_with_records_key(self):
+        """Test handles dict input with 'records' key."""
+        event = {
+            "records": [
                 {
                     "date": "2024-04-01",
                     "session": "Monday (Session One)"
@@ -387,6 +561,133 @@ class TestCleanSessionsDfRecords:
         
         assert len(result) == 1
         assert result[0]["date"] == "2024-04-01"
+
+    def test_handles_dict_with_data_key(self):
+        """Test handles dict input with 'data' key."""
+        event = {
+            "data": [
+                {
+                    "date": "2024-04-01",
+                    "session": "Monday (Session One)"
+                }
+            ]
+        }
+        
+        result = clean_sessions_df_records(event, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-01"
+
+    def test_handles_empty_records_list(self):
+        """Test handles empty records list."""
+        records = []
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 0
+        assert isinstance(result, list)
+
+    def test_handles_single_record_dict(self):
+        """Test handles single record as dict (fallback case)."""
+        event = {
+            "date": "2024-04-01",
+            "session": "Monday (Session One)",
+            "A.": "Segment A"
+        }
+        
+        result = clean_sessions_df_records(event, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-01"
+        assert result[0]["segment_a"] == "Segment A"
+
+    def test_preserves_unknown_columns(self):
+        """Test that unknown columns are preserved as-is."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "custom_field": "custom value",
+                "another_field": 123
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert result[0]["custom_field"] == "custom value"
+        assert result[0]["another_field"] == 123
+
+    def test_handles_complete_session_record(self):
+        """Test handles a complete session record with all fields."""
+        records = [
+            {
+                "date": "2024-04-01T10:00:00",
+                "session": "Monday (Session One)",
+                "Suggested Warm-Up": "3 Rounds: 10 Air Squats",
+                "A.": "Every minute, on the minute, for 3 minutes",
+                "B.": "Every 2 minutes, for 16 minutes",
+                "C.": "Every 90 seconds, for 9 minutes",
+                "D.": "Every 3 minutes, for 18 minutes",
+                "E.": "Three sets of: Pull-Ups x 8 reps"
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-01"
+        assert result[0]["session"] == "Monday (Session One)"
+        assert result[0]["warm_up"] == "3 Rounds: 10 Air Squats"
+        assert result[0]["segment_a"] == "Every minute, on the minute, for 3 minutes"
+        assert result[0]["segment_b"] == "Every 2 minutes, for 16 minutes"
+        assert result[0]["segment_c"] == "Every 90 seconds, for 9 minutes"
+        assert result[0]["segment_d"] == "Every 3 minutes, for 18 minutes"
+        assert result[0]["segment_e"] == "Three sets of: Pull-Ups x 8 reps"
+
+    def test_handles_rest_day_record(self):
+        """Test handles a rest day record correctly."""
+        records = [
+            {
+                "date": "2024-04-04",
+                "session": None,
+                "Suggested Warm-Up": None,
+                "A.": None,
+                "B.": None
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert len(result) == 1
+        assert result[0]["date"] == "2024-04-04"
+        assert result[0]["session"] == "Rest Day"
+        assert result[0]["warm_up"] == ""
+        assert result[0]["segment_a"] == ""
+        assert result[0]["segment_b"] == ""
+
+    def test_handles_mixed_none_and_values(self):
+        """Test handles records with mix of None and actual values."""
+        records = [
+            {
+                "date": "2024-04-01",
+                "session": "Monday (Session One)",
+                "Suggested Warm-Up": "Warm up text",
+                "A.": None,
+                "B.": "Segment B text",
+                "C.": None,
+                "D.": "Segment D text",
+                "E.": None
+            }
+        ]
+        
+        result = clean_sessions_df_records(records, None)
+        
+        assert result[0]["warm_up"] == "Warm up text"
+        assert result[0]["segment_a"] == ""
+        assert result[0]["segment_b"] == "Segment B text"
+        assert result[0]["segment_c"] == ""
+        assert result[0]["segment_d"] == "Segment D text"
+        assert result[0]["segment_e"] == ""
 
 
 class TestDateRangeValidation:
