@@ -83,11 +83,27 @@ def dump_post_to_bucket(invictus_raw_post, context):
 def strip_post_html(post, ctx):
     """
     Strip HTML from post content because it's not well structured markup.
+    Preserves the post date, slug, and title for downstream processing.
     """
     post_text_raw = BeautifulSoup(
         post['content']['rendered'], 'html.parser')
     
-    return {"text": post_text_raw.get_text()}
+    result = {"text": post_text_raw.get_text()}
+    
+    # Preserve post date for date calculations in downstream steps
+    if 'date' in post:
+        result['post_date'] = post['date']
+    
+    # Preserve slug and title for date range extraction
+    if 'slug' in post:
+        result['slug'] = post['slug']
+    
+    if 'title' in post and isinstance(post['title'], dict):
+        result['title'] = post['title'].get('rendered', '')
+    elif 'title' in post:
+        result['title'] = post['title']
+    
+    return result
 
 
 @lambda_handler
