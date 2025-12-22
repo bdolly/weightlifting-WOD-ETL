@@ -133,10 +133,20 @@ def dump_post_to_bucket(invictus_raw_post, context):
 
     bucket_name = os.environ['INVICTUS_BUCKET']
     
+    # Generate idempotency key
+    idempotency_key = generate_idempotency_key('dump_post_to_bucket', bucket_path)
+    
+    # DynamoDB idempotency check: skip if operation already completed
+    if check_idempotency(idempotency_key):
+        print(f'- Operation already completed for post "{post["title"]["rendered"]}", skipping')
+        return post
+    
     # S3 idempotency check: skip write if object already exists
     try:
         s3_client.head_object(Bucket=bucket_name, Key=bucket_path)
         print(f'- Post "{post["title"]["rendered"]}" already exists in bucket, skipping write')
+        # Mark as complete even though we didn't write (object already exists)
+        mark_idempotency_complete(idempotency_key)
         return post
     except Exception as e:
         error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
@@ -146,9 +156,6 @@ def dump_post_to_bucket(invictus_raw_post, context):
         else:
             # Fail-open: if check fails, allow the write
             print(f'WARNING: S3 idempotency check failed: {str(e)}, proceeding with write')
-
-    # Generate idempotency key for metadata
-    idempotency_key = generate_idempotency_key('dump_post_to_bucket', bucket_path)
 
     s3object = s3_resource.Object(bucket_name, bucket_path)
     print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
@@ -160,6 +167,9 @@ def dump_post_to_bucket(invictus_raw_post, context):
             'operation': 'dump_post_to_bucket'
         }
     )
+    
+    # Mark operation as complete in idempotency table
+    mark_idempotency_complete(idempotency_key)
 
     return post
 
