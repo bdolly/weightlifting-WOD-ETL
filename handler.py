@@ -8,6 +8,9 @@ from datetime import timedelta, timezone
 from bs4 import BeautifulSoup
 from transforms import *
 from dateutil.parser import parse
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 s3_resource = boto3.resource('s3')
@@ -46,7 +49,7 @@ def check_idempotency(idempotency_key):
     try:
         table_name = os.environ.get('IDEMPOTENCY_TABLE')
         if not table_name:
-            print('WARNING: IDEMPOTENCY_TABLE not set, skipping idempotency check')
+            logger.warning('IDEMPOTENCY_TABLE not set, skipping idempotency check')
             return False
         
         response = dynamodb_client.get_item(
@@ -55,13 +58,13 @@ def check_idempotency(idempotency_key):
         )
         
         if 'Item' in response:
-            print(f'Idempotency check: Operation already completed (key: {idempotency_key[:16]}...)')
+            logger.info(f'Idempotency check: Operation already completed (key: {idempotency_key[:16]}...)')
             return True
         
         return False
     except Exception as e:
         # Fail-open: if idempotency check fails, allow the operation
-        print(f'WARNING: Idempotency check failed: {str(e)}, allowing operation to proceed')
+        logger.warning(f'Idempotency check failed: {str(e)}, allowing operation to proceed')
         return False
 
 
@@ -79,7 +82,7 @@ def mark_idempotency_complete(idempotency_key, ttl_hours=24):
     try:
         table_name = os.environ.get('IDEMPOTENCY_TABLE')
         if not table_name:
-            print('WARNING: IDEMPOTENCY_TABLE not set, skipping idempotency marking')
+            logger.warning('IDEMPOTENCY_TABLE not set, skipping idempotency marking')
             return
         
         # Calculate TTL timestamp (Unix epoch time)
@@ -96,10 +99,10 @@ def mark_idempotency_complete(idempotency_key, ttl_hours=24):
                 'completed_at': {'S': now.isoformat()}
             }
         )
-        print(f'Idempotency marked complete (key: {idempotency_key[:16]}..., TTL: {ttl_hours}h)')
+        logger.info(f'Idempotency marked complete (key: {idempotency_key[:16]}..., TTL: {ttl_hours}h)')
     except Exception as e:
         # Fail-open: if marking fails, log but don't fail the operation
-        print(f'WARNING: Failed to mark idempotency complete: {str(e)}')
+        logger.warning(f'Failed to mark idempotency complete: {str(e)}')
 
 
 def GET_invictus_post(event, context):
@@ -145,13 +148,13 @@ def dump_post_to_bucket(invictus_raw_post, context):
     
     # DynamoDB idempotency check: skip if operation already completed
     if check_idempotency(idempotency_key):
-        print(f'- Operation already completed for post "{post["title"]["rendered"]}", skipping')
+        logger.info(f'Operation already completed for post "{post["title"]["rendered"]}", skipping')
         return post
     
     # S3 idempotency check: skip write if object already exists
     try:
         s3_client.head_object(Bucket=bucket_name, Key=bucket_path)
-        print(f'- Post "{post["title"]["rendered"]}" already exists in bucket, skipping write')
+        logger.info(f'Post "{post["title"]["rendered"]}" already exists in bucket, skipping write')
         # Mark as complete even though we didn't write (object already exists)
         mark_idempotency_complete(idempotency_key)
         return post
@@ -162,10 +165,10 @@ def dump_post_to_bucket(invictus_raw_post, context):
             pass
         else:
             # Fail-open: if check fails, allow the write
-            print(f'WARNING: S3 idempotency check failed: {str(e)}, proceeding with write')
+            logger.warning(f'S3 idempotency check failed: {str(e)}, proceeding with write')
 
     s3object = s3_resource.Object(bucket_name, bucket_path)
-    print('- Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
+    logger.info('Dumping post "{}" to bucket'.format(post["title"]["rendered"]))
 
     s3object.put(
         Body=(bytes(json.dumps(post).encode('UTF-8'))),
@@ -217,7 +220,7 @@ def save_sessions_to_bucket(session_records, context):
     # S3 idempotency check: skip write if file already exists
     try:
         s3_client.head_object(Bucket=bucket_name, Key=bucket_path)
-        print(f'- Weekly sessions file already exists ({start_date} to {end_date}), skipping write')
+        logger.info(f'Weekly sessions file already exists ({start_date} to {end_date}), skipping write')
         return json.dumps(session_records)
     except Exception as e:
         error_code = getattr(e, 'response', {}).get('Error', {}).get('Code', '')
@@ -226,7 +229,7 @@ def save_sessions_to_bucket(session_records, context):
             pass
         else:
             # Fail-open: if check fails, allow the write
-            print(f'WARNING: S3 idempotency check failed: {str(e)}, proceeding with write')
+            logger.warning(f'S3 idempotency check failed: {str(e)}, proceeding with write')
 
     s3object = s3_resource.Object(bucket_name, bucket_path)
 
